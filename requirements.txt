@@ -1,0 +1,53 @@
+# Core scientific computing
+numpy>=2.1
+pandas>=2.2
+scipy>=1.15
+
+# Machine learning
+scikit-learn>=1.5
+torch>=2.6
+torchvision>=0.21
+torchaudio>=2.6
+joblib>=1.4
+tqdm>=4.67
+
+# Geospatial processing
+geopandas>=1.0
+shapely>=2.0
+fiona>=1.10
+pyproj>=3.7
+rasterio>=1.4
+rtree>=1.4
+pyogrio>=0.10
+geocube>=0.7
+rioxarray>=0.18
+xarray>=2024.1
+
+# Statistical analysis
+statsmodels>=0.14
+libpysal>=4.13
+esda>=2.7
+mapclassify>=2.9
+
+# Visualization
+matplotlib>=3.10
+seaborn>=0.13
+plotly>=6.1
+folium>=0.20
+
+# Data processing
+pyarrow>=19.0
+openpyxl>=3.1
+
+# Notebooks (optional – uncomment if you want a Jupyter setup)
+# jupyterlab>=4.3
+# ipykernel>=6.29
+# ipywidgets>=8.1
+
+# Advanced/optional ML (uncomment only if you use them)
+# umap-learn>=0.5.7
+# hdbscan>=0.8.40
+# shap>=0.47
+# scikit-fuzzy>=0.5
+
+
