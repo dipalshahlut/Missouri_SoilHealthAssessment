@@ -41,7 +41,17 @@ log = logging.getLogger(__name__)
 # 1) Load
 # ---------------------------------------------------------------------
 
-def load_horizon_data(horizon_csv: str, cfrag_csv: str) -> pd.DataFrame:
+# SoilAnalysis/horizon_processing.py
+import pandas as pd
+import numpy as np
+import os
+import logging
+
+from utils import time_this, get_task_logger, wtd_mean, kgOrgC_sum, awc_sum, MUaggregate, MUAggregate_wrapper, \
+    reskind_comppct, concat_names, horizon_to_comp
+
+
+def load_horizon_data(horizon_path, cfrag_path):
     """
     Load horizon (chorizon.csv) and coarse fragment (cfrag.csv) tables,
     normalize column names, attach fragvol_r, ensure awc_r exists (warn if missing),
@@ -50,104 +60,29 @@ def load_horizon_data(horizon_csv: str, cfrag_csv: str) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        Columns (when present): [
-            'cokey','chkey','hzdept_r','hzdepb_r','fragvol_r',
-            'claytotal_r','silttotal_r','sandtotal_r','om_r','cec7_r',
-            'dbthirdbar_r','kwfact','ec_r','ph1to1h2o_r','sar_r',
-            'caco3_r','gypsum_r','lep_r','ksat_r','awc_r'
-        ]
+        Full merged horizon dataframe with any available columns plus `fragvol_r` summed by chkey.
     """
-    if not os.path.exists(horizon_csv):
-        raise FileNotFoundError(f"Missing horizon file: {horizon_csv}")
-    if not os.path.exists(cfrag_csv):
-        raise FileNotFoundError(f"Missing coarse fragment file: {cfrag_csv}")
+    
+    print("Loading horizon and fragment data...")
+    horizon_ = pd.read_csv(horizon_path, na_values=['', ' '])
+    cfrag_ = pd.read_csv(cfrag_path, na_values=['', ' '])
 
-    hz = pd.read_csv(horizon_csv, low_memory=False)
-    cf = pd.read_csv(cfrag_csv, low_memory=False)
+    # Select only relevant columns from fragments and merge
+    cfrag_df = cfrag_[['fragvol_r','chkey']].copy()
+    # Aggregate fragments per horizon key (chkey) if multiple fragments per horizon exist
+    cfrag_agg = cfrag_df.groupby('chkey')['fragvol_r'].sum().reset_index()
 
-    # Normalize column names to lowercase
-    for df in (hz, cf):
-        df.rename(columns={c: c.lower() for c in df.columns}, inplace=True)
-
-    # Ensure keys exist
-    if "cokey" not in hz.columns:
-        raise KeyError("Horizon table must include 'cokey'.")
-    if "hzdept_r" not in hz.columns or "hzdepb_r" not in hz.columns:
-        raise KeyError("Horizon table must include 'hzdept_r' and 'hzdepb_r'.")
-
-    # --- Ensure awc_r exists (warn + fill with NaN if missing) ---
-    if "awc_r" not in hz.columns:
-        log.warning(
-            "Column 'awc_r' not found in horizon data. "
-            "Filling with NaN — AWC values will be missing downstream."
-        )
-        hz["awc_r"] = np.nan
-
-    # --- Attach fragvol_r from cfrag ---
-    frag_added = False
-    if not cf.empty:
-        # Prefer joining by chkey if available in both
-        if "chkey" in hz.columns and "chkey" in cf.columns:
-            frag = (
-                cf.groupby("chkey", as_index=False)["fragvol_r"]
-                  .mean()  # average across fragment records within a horizon
-            )
-            hz = hz.merge(frag, on="chkey", how="left")
-            frag_added = True
-        else:
-            # Fallback: average by (cokey, hzdept_r, hzdepb_r) if present in cfrag
-            join_cols = [c for c in ["cokey", "hzdept_r", "hzdepb_r"] if c in cf.columns]
-            if len(join_cols) >= 2 and "fragvol_r" in cf.columns:
-                frag = (
-                    cf.groupby(join_cols, as_index=False)["fragvol_r"]
-                      .mean()
-                )
-                hz = hz.merge(frag, on=join_cols, how="left")
-                frag_added = True
-
-    if not frag_added and "fragvol_r" not in hz.columns:
-        # If still missing, add as NaN (some datasets don’t have cfrag)
-        log.info("No coarse fragment join performed; setting 'fragvol_r' to NaN.")
-        hz["fragvol_r"] = np.nan
-
-    # --- Coerce numerics for key columns (ignore if absent) ---
-    numeric_cols = [
-        "hzdept_r", "hzdepb_r", "fragvol_r", "dbthirdbar_r", "awc_r",
-        "claytotal_r", "silttotal_r", "sandtotal_r", "om_r",
-        "cec7_r", "kwfact", "ec_r", "ph1to1h2o_r", "sar_r",
-        "caco3_r", "gypsum_r", "lep_r", "ksat_r",
-    ]
-    for col in numeric_cols:
-        if col in hz.columns:
-            hz[col] = pd.to_numeric(hz[col], errors="coerce")
-
-    # --- Keep only the columns we actually use downstream (plus keys) ---
-    keep_core = {
-        "cokey", "chkey", "hzdept_r", "hzdepb_r", "fragvol_r",
-        "claytotal_r", "silttotal_r", "sandtotal_r", "om_r", "cec7_r",
-        "dbthirdbar_r", "kwfact", "ec_r", "ph1to1h2o_r", "sar_r",
-        "caco3_r", "gypsum_r", "lep_r", "ksat_r", "awc_r",
-    }
-    keep = [c for c in hz.columns if c in keep_core]
-
-    # Final sanity: drop obviously bad depth rows
-    out = hz[keep].copy()
-    out = out[out["hzdepb_r"] > out["hzdept_r"]]
-
-    return out
-
-
+    # Merge aggregated fragments with horizon data
+    horizon_df = pd.merge(horizon_, cfrag_agg, on='chkey', how='left') # Use left join to keep all horizons
+    print(f"Loaded and merged {len(horizon_df)} horizon records.")
+    print(f"Horizon columns: {horizon_df.columns}")
+    return horizon_df
 
 # ---------------------------------------------------------------------
 # 2) Prepare / Clean
 # ---------------------------------------------------------------------
 
-def prepare_horizon_data(
-    horizon_df: pd.DataFrame,
-    comp_df: pd.DataFrame,
-    reskinds_by_cokey: Optional[pd.DataFrame] = None,
-    rock_na_to_0: bool = True,
-) -> pd.DataFrame:
+def prepare_horizon_data(horizon_df, comp_data_mo, reskinds_by_cokey, rockNA_to_0=True):
     """
     Filter horizons to the study area (via comp_df) and attach component metadata.
 
@@ -157,9 +92,9 @@ def prepare_horizon_data(
         Output of `load_horizon_data`.
     comp_df : pd.DataFrame
         Component metadata already filtered to study area (e.g., Missouri).
-        Must include: ['cokey','mukey','compname','comppct_r','majcompflag'].
+        Must include: ['cokey','mukey','majcompflag'].
     reskinds_by_cokey : pd.DataFrame or None
-        Optional table with ['cokey','reskinds'] summarizing restriction kinds.
+        Optional table with ['cokey','reskinds'] summarizing restriction kinds (renamed to 'kind').
     rock_na_to_0 : bool
         If True, set missing fragvol_r to 0 (common pragmatic choice).
 
@@ -169,58 +104,70 @@ def prepare_horizon_data(
         Horizon rows limited to **major components** in the study area,
         with component attributes attached and cleaned numeric fields.
     """
-    required_cols = {"cokey", "mukey", "compname", "comppct_r", "majcompflag"}
-    missing = required_cols - set(comp_df.columns)
-    if missing:
-        raise KeyError(f"comp_df missing required columns: {sorted(missing)}")
+    print("Preparing horizon data for MO...")
+    # Filter horizon_data to include only matching cokeys from comp_data_mo
+    horizon_data_mo = horizon_df[horizon_df['cokey'].isin(comp_data_mo['cokey'])].copy()
+    print(f"Filtered {len(horizon_data_mo)} horizon records for MO.")
 
-    # Keep only components in the study area & mark majors
-    comp = comp_df.copy()
-    comp["mukey"] = comp["mukey"].astype(str)
-    comp["majcompflag"] = comp["majcompflag"].astype(str).str.strip()
+    if horizon_data_mo.empty:
+        print("Warning: No horizon data found for the provided component keys.")
+        return horizon_data_mo # Return empty DataFrame
 
-    majors = comp[comp["majcompflag"].str.upper().str.startswith("YES")].copy()
-    if majors.empty:
-        log.warning("No 'major' components found; using all components instead.")
-        majors = comp.copy()
+    # Assign majcompflag and mukey from comp_data_mo
+    cokey_map = comp_data_mo.set_index('cokey')
+    horizon_data_mo['majcompflag'] = horizon_data_mo['cokey'].map(cokey_map['majcompflag'])
+    horizon_data_mo['mukey'] = horizon_data_mo['cokey'].map(cokey_map['mukey'])
 
-    # Attach component metadata to horizons
-    cols_to_keep = ["cokey", "mukey", "compname", "comppct_r"]
-    hz = horizon_df.merge(majors[cols_to_keep], on="cokey", how="inner")
+    # Filter only rows where majcompflag is 'Yes' for major component analysis
+    horizons_mo_majcomps = horizon_data_mo[horizon_data_mo['majcompflag'] == 'Yes'].copy()
+    print(f"Filtered {len(horizons_mo_majcomps)} horizon records for Major Components.")
 
-    # Optionally attach restriction kinds per component
+    if horizons_mo_majcomps.empty:
+        print("Warning: No major component horizon data found.")
+        return horizons_mo_majcomps
+
+    # Handle missing rock fragment volume ('fragvol_r')
+    missing_fragvol = horizons_mo_majcomps['fragvol_r'].isna().sum()
+    print(f"Initial missing fragvol_r values in major components: {missing_fragvol}")
+    if rockNA_to_0:
+        horizons_mo_majcomps['fragvol_r'].fillna(0, inplace=True)
+        print(f"Missing fragvol_r values after fillna(0): {horizons_mo_majcomps['fragvol_r'].isna().sum()}")
+
+    # Add restriction 'kind' information
     if reskinds_by_cokey is not None and not reskinds_by_cokey.empty:
-        if {"cokey", "reskinds"} <= set(reskinds_by_cokey.columns):
-            hz = hz.merge(reskinds_by_cokey[["cokey", "reskinds"]], on="cokey", how="left")
-        else:
-            log.warning("reskinds_by_cokey missing expected columns; skipping attach.")
+         # Ensure cokey types match if needed
+         # reskinds_by_cokey['cokey'] = reskinds_by_cokey['cokey'].astype(horizons_mo_majcomps['cokey'].dtype) 
+         horizons_mo_majcomps = horizons_mo_majcomps.merge(
+            reskinds_by_cokey[['cokey', 'reskinds']].rename(columns={'reskinds': 'kind'}),
+            on='cokey', how='left'
+         )
+         print("Added restriction kinds to horizon data.")
+         print(f"Missing restriction kinds after merge: {horizons_mo_majcomps['kind'].isna().sum()}")
+    else:
+         print("Skipping addition of restriction kinds as reskinds_by_cokey is empty/None.")
+         horizons_mo_majcomps['kind'] = None # Add empty column
 
-    # Cleaning tweaks
-    if rock_na_to_0 and "fragvol_r" in hz.columns:
-        hz["fragvol_r"] = hz["fragvol_r"].fillna(0.0)
 
-    # Drop obviously bad depth rows
-    hz = hz[hz["hzdepb_r"] > hz["hzdept_r"]].copy()
+    # Estimate soil depth (max bottom depth per component)
+    # Ensure depths are numeric
+    horizons_mo_majcomps['hzdepb_r'] = pd.to_numeric(horizons_mo_majcomps['hzdepb_r'], errors='coerce')
+    soil_depths = horizons_mo_majcomps.groupby('cokey')['hzdepb_r'].max().reset_index(name='soil_depth')
+    horizons_mo_majcomps = horizons_mo_majcomps.merge(soil_depths, on='cokey', how='left')
+    print("Estimated soil depth per component.")
 
-    # Ensure types
-    for c in ["mukey"]:
-        if c in hz.columns:
-            hz[c] = hz[c].astype(str)
-
-    return hz
-
+    # --- Optional: Calculate profile-level aggregates if needed before horizon_to_comp ---
+    # print("Calculating profile-level weighted means/sums (optional step)...")
+    # horizons_mo_majcomps['clay_wtd_mean_profile'] = wtd_mean(horizons_mo_majcomps, 'claytotal_r', weight_col=None, depth_cols=('hzdept_r', 'hzdepb_r')) # Adjust args as needed
+    # horizons_mo_majcomps['kgOrg_m2_profile'] = kgOrgC_sum(horizons_mo_majcomps) # Adjust args as needed
+    
+    print("Horizon data preparation complete.")
+    return horizons_mo_majcomps
 
 # ---------------------------------------------------------------------
 # 3) Aggregate horizon ➜ component at a depth slice
 # ---------------------------------------------------------------------
 
-def aggregate_horizons_depth_slice(
-    hz_df: pd.DataFrame,
-    comp_df: pd.DataFrame,
-    depth_cm: int,
-    out_dir: str,
-    tag: str,
-) -> pd.DataFrame:
+def aggregate_horizons_depth_slice(horizons_mo_majcomps, comp_data_mo, depth, output_dir, filename_suffix):
     """
     Aggregate horizon variables to the component level up to `depth_cm` and save to CSV.
 
@@ -229,12 +176,12 @@ def aggregate_horizons_depth_slice(
     hz_df : pd.DataFrame
         Prepared horizon rows (from `prepare_horizon_data`).
     comp_df : pd.DataFrame
-        Component metadata (at least ['cokey','mukey','compname','comppct_r']).
+        Component metadata (at least ['cokey','mukey','comppct_r']).
     depth_cm : int
         Depth threshold in centimeters (e.g., 10, 30, 100).
     out_dir : str
         Output directory; CSV will be written here.
-    tag : str
+    filename_suffix : str
         A short label used in the filename (e.g., "30cm").
 
     Returns
@@ -242,19 +189,59 @@ def aggregate_horizons_depth_slice(
     pd.DataFrame
         Component-level aggregates with columns like clay_30cm, om_30cm, kgOrg.m2_30cm, awc_30cm, etc.
     """
-    os.makedirs(out_dir, exist_ok=True)
-    comp_agg = horizon_to_comp(
-        horizon_df=hz_df,
-        depth=depth_cm,
-        comp_df=comp_df,
-        vars_of_interest=None,  # use defaults inside horizon_to_comp
-        varnames=None
-    )
+    if horizons_mo_majcomps.empty:
+        print(f"Skipping aggregation for {depth}cm: No major component horizon data.")
+        return None
 
-    # Save
-    out_csv = os.path.join(out_dir, f"comp_mo_{tag}.csv")
-    comp_agg.to_csv(out_csv, index=False)
-    log.info("Wrote component aggregates for %s: %s", tag, out_csv)
+    print(f"Aggregating horizon data to component level for {depth}cm depth...")
+    # Ensure comp_data_mo has the necessary columns ('cokey', 'mukey', 'comppct_r')
+    required_cols = ['cokey', 'mukey', 'comppct_r']
+    if not all(col in comp_data_mo.columns for col in required_cols):
+        raise ValueError(f"comp_data_mo is missing one or more required columns: {required_cols}")
+
+    comp_agg = horizon_to_comp(horizons_mo_majcomps, depth=depth, comp_df=comp_data_mo)
+
+    if comp_agg is not None and not comp_agg.empty:
+        print(f"Aggregation complete for {depth}cm. Shape: {comp_agg.shape}")
+        # Save intermediate result
+        csv_path = os.path.join(output_dir, f"comp_MO_{filename_suffix}.csv")
+        comp_agg.to_csv(csv_path, index=False)
+        print(f"Saved aggregated component data to {csv_path}")
+
+        # --- Post-aggregation processing (Zero handling, QC) ---
+        print(f"Performing post-aggregation checks and cleaning for {depth}cm data...")
+        # Identify problematic components (optional)
+        # problematic_components = {
+        #     col: comp_agg.loc[comp_agg[col].isna(), 'compname'].unique()
+        #     for col in comp_agg.columns if col not in ['cokey', 'mukey', 'comppct', 'compname'] # Adjust columns to check
+        # }
+        # if any(problematic_components.values()):
+        #      print(f"Problematic components with NAs found for {depth}cm.")
+
+        # Convert specific zero values to NaN
+        zero_vars = [f'om_{depth}cm', f'cec_{depth}cm', f'ksat_{depth}cm', f'awc_{depth}cm']
+        # Filter list to only include columns that actually exist in the aggregated df
+        zero_vars = [var for var in zero_vars if var in comp_agg.columns]
+
+        for var in zero_vars:
+            if (comp_agg[var] == 0).any():
+                print(f"Converting 0 to NaN for {var}")
+                comp_agg[f"{var}_zero"] = np.where(comp_agg[var] == 0, 'Yes', 'No')
+                comp_agg.loc[comp_agg[var] == 0, var] = np.nan
+
+        # Fix Ksat for Rock outcrop if ksat column exists
+        ksat_col = f'ksat_{depth}cm'
+        if ksat_col in comp_agg.columns and 'compname' in comp_agg.columns:
+             rock_ksat_mask = (comp_agg['compname'] == 'Rock outcrop') & (comp_agg[ksat_col] > 0)
+             if rock_ksat_mask.any():
+                  print(f"Converting Ksat to NaN for {rock_ksat_mask.sum()} 'Rock outcrop' components.")
+                  comp_agg.loc[rock_ksat_mask, ksat_col] = np.nan
+
+    else:
+        print(f"Aggregation for {depth}cm resulted in an empty DataFrame.")
+        return None
+
+    print(f"Post-aggregation processing for {depth}cm complete.")
     return comp_agg
 
 
@@ -262,59 +249,42 @@ def aggregate_horizons_depth_slice(
 # 4) QC summaries
 # ---------------------------------------------------------------------
 
-def quality_check_aggregation(comp_agg_df: pd.DataFrame, depth_cm: int) -> Dict[str, pd.DataFrame]:
+def quality_check_aggregation(comp_agg, depth):
     """
     Quick QC coverage summaries for component aggregates at the given depth.
 
-    For each metric column "*_{depth}cm":
-        - Compute, per MU, the total component percent (comppct) that *has data* for that metric.
-        - The result is an approximate coverage indicator in [% of component composition].
-
-    Parameters
-    ----------
-    comp_agg_df : pd.DataFrame
-        Output of `aggregate_horizons_depth_slice`: must include
-        ['mukey','cokey','compname','comppct', <metric_*_{depth}cm>...].
-    depth_cm : int
-        Depth used to derive the metric columns (e.g., 30).
-
-    Returns
-    -------
-    Dict[str, pd.DataFrame]
-        Mapping metric_name -> DataFrame with columns ['mukey','compct_with_data'] (0..100).
+    For each metric column in a fixed list for this depth, compute per-MU total component percent
+    (comppct) that has data. Return mapping metric_name -> DataFrame[['mukey','comppct_tot']].
     """
-    if comp_agg_df.empty:
-        return {}
+    if comp_agg is None or comp_agg.empty:
+        print(f"Skipping QC for {depth}cm: Aggregated data is empty.")
+        return None
 
-    req_cols = {"mukey", "comppct"}
-    if not req_cols.issubset(comp_agg_df.columns):
-        missing = req_cols - set(comp_agg_df.columns)
-        raise KeyError(f"comp_agg_df missing required columns: {sorted(missing)}")
+    print(f"Performing quality checks on {depth}cm aggregated data...")
+    qc_results = {}
+    variables_to_check = [f'om_{depth}cm', f'awc_{depth}cm', f'ksat_{depth}cm', f'cec_{depth}cm',
+                           f'clay_{depth}cm', f'bd_{depth}cm', f'ec_{depth}cm', f'pH_{depth}cm', f'lep_{depth}cm']
+    # Filter list to only include columns that actually exist
+    variables_to_check = [var for var in variables_to_check if var in comp_agg.columns]
 
-    df = comp_agg_df.copy()
-    df["mukey"] = df["mukey"].astype(str)
 
-    # Identify metric columns for this depth
-    suffix = f"_{depth_cm}cm"
-    metric_cols = [c for c in df.columns if c.endswith(suffix) and not c.startswith(("kgOrg.m2", "awc_"))]
-    # Include kgOrg and awc explicitly as they use slightly different base names
-    if f"kgOrg.m2_{depth_cm}cm" in df.columns:
-        metric_cols.append(f"kgOrg.m2_{depth_cm}cm")
-    if f"awc_{depth_cm}cm" in df.columns:
-        metric_cols.append(f"awc_{depth_cm}cm")
+    for var in variables_to_check:
+        filtered_data = comp_agg.dropna(subset=[var])
+        if not filtered_data.empty and 'mukey' in filtered_data.columns and 'comppct' in filtered_data.columns:
+            comppct_by_mukey = filtered_data.groupby('mukey')['comppct'].sum().reset_index(name='comppct_tot')
+            qc_results[var] = comppct_by_mukey
+            print(f"QC for {var}:")
+            print(comppct_by_mukey['comppct_tot'].describe())
+            low_pct_count = (comppct_by_mukey['comppct_tot'] < 70).sum()
+            print(f"  -> Mukeys with comppct_tot < 70: {low_pct_count}")
+        else:
+            print(f"Skipping QC for {var}: Column not found, no data, or missing mukey/comppct.")
+            qc_results[var] = None
 
-    out: Dict[str, pd.DataFrame] = {}
+    print(f"Quality checks for {depth}cm complete.")
+    return qc_results
 
-    for col in metric_cols:
-        mask_has_data = df[col].notna()
-        # Sum component % where this metric is present
-        compct = (df.loc[mask_has_data]
-                    .groupby("mukey")["comppct"]
-                    .sum()
-                    .reset_index(name="compct_with_data"))
-        # Normalize to 0..100 (component percents typically sum to ~100 per MU)
-        # If your comppct is already 0..100, this is already in %
-        # If your comppct is 0..1, scale accordingly here.
-        out[col] = compct.sort_values("compct_with_data", ascending=False)
 
-    return out
+
+
+

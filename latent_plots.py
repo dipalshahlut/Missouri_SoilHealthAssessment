@@ -255,7 +255,7 @@ def plot_latent(
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Stage 5 — Latent Space Visualization (2D scatter)")
-    p.add_argument("--output-dir", type=Path, default=Path("/Users/dscqv/Desktop/SHA_copy/data/aggResult"))
+    p.add_argument("--output-dir", type=Path, default=None, help ="Directory to write intermediate artifacts." )
     p.add_argument("--method", type=str, default=None, help="Method (KMeans, Agglomerative, Birch, GMM).")
     p.add_argument("--k", type=int, default=None, help="Number of clusters.")
     p.add_argument("--title", type=str, default=None, help="Custom title.")

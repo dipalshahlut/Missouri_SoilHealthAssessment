@@ -171,287 +171,232 @@ def time_this(func: Callable) -> Callable:
             logger.log(lvl, "Finished: %s %s in %.4f seconds.", name, status, dt)
     return wrapper
 
-
 # ---------------------------------------------------------------------
 # Horizon-level utilities
 # ---------------------------------------------------------------------
+    
 
-def _horizon_thickness(df: pd.DataFrame) -> np.ndarray:
-    """Return horizon thickness (hzdepb_r - hzdept_r)."""
-    return (df["hzdepb_r"] - df["hzdept_r"]).to_numpy()
-
-
-def wtd_mean(df: pd.DataFrame, y: str) -> float:
+def wtd_mean(df, y):
     """
-    Weighted mean over horizons using thickness as weights.
+    Calculate the weighted mean using horizon thickness as weights.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Horizon dataframe with columns: hzdept_r, hzdepb_r, and `y`.
-    y : str
-        Column to average.
+    Args:
+        df (pd.DataFrame): DataFrame containing the horizon data.
+        y (str): Column name for the variable to compute the weighted mean.
 
-    Returns
-    -------
-    float
-        Weighted mean. NaNs in `y` are ignored by masking weights/values.
+    Returns:
+        float: The weighted mean value, accounting for missing data.
     """
-    values = df[y].to_numpy()
-    weights = _horizon_thickness(df)
-    mask = ~np.isnan(values) & ~np.isnan(weights)
-    if mask.sum() == 0:
-        return np.nan
-    try:
-        return float(np.average(values[mask], weights=weights[mask]))
-    except ZeroDivisionError:
-        return np.nan
+    # Calculate horizon thickness
+    thickness = df['hzdepb_r'] - df['hzdept_r']
 
+    # Extract the variable of interest
+    values = df[y]
 
-def kgOrgC_sum(
-    df: pd.DataFrame,
-    slice_it: bool = False,
-    depth: Optional[int] = None,
-    rm_nas: bool = True,
-    om_to_c: float = 1.72,
-) -> float:
+    # Compute the weighted mean, ignoring NaN values
+    weighted_mean = np.average(values, weights=thickness, returned=False)
+
+    return weighted_mean
+
+def kgOrgC_sum(df, slice_it=False, depth=None, rm_nas=True, om_to_c=1.72):
     """
-    Estimate total organic carbon content across horizons.
+    #     Estimate total organic carbon content across horizons.
 
-    Formula (as used in your codebase)
-    ----------------------------------
-    (thickness_cm / 10) * (OM / om_to_c) * bulk_density * (1 - fragment_vol%)
-    where:
-      thickness_cm = hzdepb_r - hzdept_r
-      OM ~ organic matter
-      bulk_density ~ dbthirdbar_r
-      fragment_vol% ~ fragvol_r (0..100)
+    #     Formula (as used in your codebase)
+    #     ----------------------------------
+    #     (thickness_cm / 10) * (OM / om_to_c) * bulk_density * (1 - fragment_vol%)
+    #     where:
+    #       thickness_cm = hzdepb_r - hzdept_r
+    #       OM ~ organic matter
+    #       bulk_density ~ dbthirdbar_r
+    #       fragment_vol% ~ fragvol_r (0..100)
 
-    Parameters
-    ----------
-    slice_it : bool
-        If True, only consider the first `depth` horizons (row-wise).
-    depth : int | None
-        Number of horizons to include if `slice_it` is True.
-    rm_nas : bool
-        If True, ignore NaNs using np.nansum.
-    om_to_c : float
-        Conversion factor OM ➜ OC.
+    #     Parameters
+    #     ----------
+    #     slice_it : bool
+    #         If True, only consider the first `depth` horizons (row-wise).
+    #     depth : int | None
+    #         Number of horizons to include if `slice_it` is True.
+    #     rm_nas : bool
+    #         If True, ignore NaNs using np.nansum.
+    #     om_to_c : float
+    #         Conversion factor OM ➜ OC.
 
-    Returns
-    -------
-    float
-        Total organic C estimate (units consistent with inputs).
+    #     Returns
+    #     -------
+    #     float
+    #         Total organic C estimate (units consistent with inputs).
     """
-    d = df.iloc[:depth] if slice_it and depth is not None else df
-    thickness_cm = (d["hzdepb_r"] - d["hzdept_r"]).astype(float)
-    term = (
-        (thickness_cm / 10.0)
-        * (d["om_r"].astype(float) / om_to_c)
-        * d["dbthirdbar_r"].astype(float)
-        * (1.0 - d["fragvol_r"].astype(float) / 100.0)
-    )
-    return float(np.nansum(term) if rm_nas else np.sum(term))
+    # Slice the DataFrame if needed
+    if slice_it and depth is not None:
+        df = df.iloc[:depth]
 
+    # Calculate horizon thickness
+    thickness = df['hzdepb_r'] - df['hzdept_r']
 
-def awc_sum(df: pd.DataFrame, rm_nas: bool = True) -> float:
+    # Calculate total organic carbon content
+    organic_carbon = (thickness / 10) * (df['om_r'] / om_to_c) * df['dbthirdbar_r'] * (1 - df['fragvol_r'] / 100)
+   
+    # Sum the values, handling NaNs
+    if rm_nas:
+        total_organic_carbon = np.nansum(organic_carbon)
+    else:
+        total_organic_carbon = np.sum(organic_carbon)
+   
+    return total_organic_carbon
+
+def awc_sum(df, rm_nas=True):
     """
-    Total Available Water Capacity (AWC) across horizons.
+    Calculate the total available water capacity (AWC) for soil horizons.
 
-    Requires: hzdept_r, hzdepb_r, awc_r (if missing, returns NaN gracefully).
+    Args:
+        df (pd.DataFrame): DataFrame containing horizon-level data.
+        rm_nas (bool): Whether to ignore NaN values in the calculation.
+
+    Returns:
+        float: Total available water capacity.
     """
-    if "awc_r" not in df.columns:
-        return np.nan  # no AWC in this dataset
+    # Calculate horizon thickness
+    thickness = df['hzdepb_r'] - df['hzdept_r']
 
-    thickness_cm = (df["hzdepb_r"] - df["hzdept_r"]).astype(float)
-    awc = pd.to_numeric(df["awc_r"], errors="coerce")
-    term = thickness_cm * awc
-    return float(np.nansum(term) if rm_nas else np.sum(term))
+    # Calculate AWC contribution for each horizon
+    awc_contribution = thickness * df['awc_r']
 
+    # Sum the AWC values, handling NaNs
+    if rm_nas:
+        total_awc = np.nansum(awc_contribution)
+    else:
+        total_awc = np.sum(awc_contribution)
+   
+    return total_awc
 
-# ---------------------------------------------------------------------
-# Aggregation helpers
-# ---------------------------------------------------------------------
+# # ---------------------------------------------------------------------
+# # Aggregation helpers
+# # ---------------------------------------------------------------------
 
-def horizon_to_comp(
-    horizon_df: pd.DataFrame,
-    depth: int,
-    comp_df: pd.DataFrame,
-    vars_of_interest: Optional[List[str]] = None,
-    varnames: Optional[List[str]] = None,
-) -> pd.DataFrame:
+def horizon_to_comp(horizon_df, depth, comp_df, 
+                    vars_of_interest=None, 
+                    varnames=None):
     """
-    Aggregate horizon-level values up to component-level for a depth slice.
-
-    Parameters
-    ----------
-    horizon_df : pd.DataFrame
-        Horizon rows (must include: cokey, hzdept_r, hzdepb_r, variables).
-    depth : int
-        Include horizons whose bottom depth (hzdepb_r) <= depth (cm).
-    comp_df : pd.DataFrame
-        Component metadata (at least cokey, compname, mukey, comppct_r).
-    vars_of_interest : list[str] | None
-        Horizon variables to compute weighted averages for.
-    varnames : list[str] | None
-        Friendly output names aligned to `vars_of_interest`.
-
-    Returns
-    -------
-    pd.DataFrame
-        Component-level aggregates with:
-          ['mukey','cokey','compname','comppct', <metrics...>, 'kgOrg.m2_{depth}cm','awc_{depth}cm']
+    
+    Args:
+        horizon_df (DataFrame): DataFrame containing horizon-level data.
+        depth (int): Depth in cm to filter the horizon data.
+        comp_df (DataFrame): DataFrame containing component-level data.
+        vars_of_interest (list): Horizon variables to aggregate.
+        varnames (list): Corresponding variable names for the output.
+    
+    Returns:
+        DataFrame: Aggregated data by component.
     """
+    # Default values for vars_of_interest and varnames
     if vars_of_interest is None:
         vars_of_interest = [
-            "claytotal_r", "silttotal_r", "sandtotal_r", "om_r", "cec7_r",
-            "dbthirdbar_r", "fragvol_r", "kwfact", "ec_r", "ph1to1h2o_r",
-            "sar_r", "caco3_r", "gypsum_r", "lep_r", "ksat_r",
+            'claytotal_r', 'silttotal_r', 'sandtotal_r', 'om_r', 'cec7_r', 
+            'dbthirdbar_r', 'fragvol_r', 'kwfact', 'ec_r', 'ph1to1h2o_r', 
+            'sar_r', 'caco3_r', 'gypsum_r', 'lep_r', 'ksat_r'
         ]
     if varnames is None:
         varnames = [
-            "clay", "silt", "sand", "om", "cec", "bd", "frags", "kwf",
-            "ec", "pH", "sar", "caco3", "gyp", "lep", "ksat",
+            'clay', 'silt', 'sand', 'om', 'cec', 'bd', 'frags', 'kwf', 
+            'ec', 'pH', 'sar', 'caco3', 'gyp', 'lep', 'ksat'
         ]
 
-    # Select horizons up to the requested depth threshold
-    sliced = horizon_df[horizon_df["hzdepb_r"] <= depth].copy()
+    # Generate column names
+    columnames = [f"{var}_{depth}cm" for var in varnames]
+    #print(pd.DataFrame({'vars_of_interest': vars_of_interest, 'columnames': columnames}))
 
-    # Weighted mean helper with NaN-safe masking
-    def _wmean(group: pd.DataFrame, col: str) -> float:
-        vals = group[col].to_numpy(dtype=float)
-        wts = (group["hzdepb_r"] - group["hzdept_r"]).to_numpy(dtype=float)
-        mask = ~np.isnan(vals) & ~np.isnan(wts)
-        if mask.sum() == 0:
-            return np.nan
-        return float(np.average(vals[mask], weights=wts[mask]))
+    # Slice the DataFrame to include horizons up to the specified depth
+    sliced_df = horizon_df[horizon_df['hzdepb_r'] <= depth].copy()
+    # Initialize results
+    result = {}
 
-    result: Dict[str, pd.Series] = {}
-    out_cols = [f"{name}_{depth}cm" for name in varnames]
+    # Weighted mean function
+    def weighted_mean(data, var, weight):
+        return np.average(data[var], weights=weight, axis=0)
 
-    for hz_col, out_col in zip(vars_of_interest, out_cols):
-        if hz_col in sliced.columns:
-            result[out_col] = sliced.groupby("cokey").apply(lambda g: _wmean(g, hz_col))
-
-    # Additional aggregates
-    result[f"kgOrg.m2_{depth}cm"] = sliced.groupby("cokey").apply(lambda g: kgOrgC_sum(g))
-    result[f"awc_{depth}cm"] = sliced.groupby("cokey").apply(lambda g: awc_sum(g))
-
-    comp_level = pd.DataFrame(result).reset_index()
-
-    # Attach component metadata and tidy
-    keep = ["cokey", "compname", "mukey", "comppct_r"]
-    comp_meta = comp_df[keep].copy()
-    comp_meta.rename(columns={"comppct_r": "comppct"}, inplace=True)
-
-    out = comp_level.merge(comp_meta, on="cokey", how="left")
-    # Reorder for readability
-    out = out[["mukey", "cokey", "compname", "comppct"] + out_cols + [f"kgOrg.m2_{depth}cm", f"awc_{depth}cm"]]
-    return out
-
-
-def MUaggregate(df: pd.DataFrame, varname: str) -> Dict[str, float]:
-    """
-    Aggregate component-level values to the MU level using component % weights.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Component-level rows with columns: ['mukey', 'comppct', varname]
-    varname : str
-        Column to aggregate.
-
-    Returns
-    -------
-    dict
-        {mukey -> weighted average} (NaN if no valid components)
-    """
-    out: Dict[str, float] = {}
-    for mukey, grp in df.groupby("mukey"):
-        valid = grp[varname].notna()
-        if valid.sum() == 0:
-            out[mukey] = np.nan
-        else:
-            w = grp.loc[valid, "comppct"].astype(float)
-            v = grp.loc[valid, varname].astype(float)
-            try:
-                out[mukey] = float(np.average(v, weights=w))
-            except ZeroDivisionError:
-                out[mukey] = np.nan
-    return out
-
-
-def MUAggregate_wrapper(df: pd.DataFrame, varnames: Iterable[str]) -> pd.DataFrame:
-    """
-    Apply MUaggregate across multiple variables and return an MU-wide dataframe.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Component-level table with at least ['mukey', 'comppct', *varnames]
-    varnames : Iterable[str]
-        Variables to aggregate to MU level.
-
-    Returns
-    -------
-    pd.DataFrame
-        One row per mukey with aggregated columns; includes 'mukey' as a column.
-    """
-    results = {var: MUaggregate(df, var) for var in varnames}
-    mu_df = pd.DataFrame(results)
-    mu_df["mukey"] = mu_df.index.astype(str)
-    mu_df.reset_index(drop=True, inplace=True)
-    return mu_df
-
-
-# ---------------------------------------------------------------------
-# Misc helpers
-# ---------------------------------------------------------------------
-
-def concat_names(series: pd.Series, sep: str = ", ") -> str:
-    """
-    Join unique, non-null values in a readable way (stable order).
-
-    Example
-    -------
-    concat_names(pd.Series(["A", "B", "A"])) -> "A, B"
-    """
-    vals = [str(x) for x in series.dropna().tolist() if str(x).strip() != ""]
-    # Preserve original order but drop duplicates
-    seen, out = set(), []
-    for v in vals:
-        if v not in seen:
-            seen.add(v)
-            out.append(v)
-    return sep.join(out)
-
-
-def reskind_comppct(reskind: str, comp_df: pd.DataFrame, reskinds_by_cokey: pd.DataFrame) -> pd.DataFrame:
-    """
-    Compute total component % per MU for a given restriction kind.
-
-    Parameters
-    ----------
-    reskind : str
-        Restriction kind name to match (case-insensitive, substring match ok).
-    comp_df : pd.DataFrame
-        Component data with ['cokey','mukey','comppct_r'].
-    reskinds_by_cokey : pd.DataFrame
-        Table with ['cokey','reskinds'] listing kinds per component.
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ['mukey','compct_sum'] where compct_sum is the sum of comppct_r
-        over components whose reskinds contain `reskind`.
-    """
-    # Identify which components (cokey) have this restriction kind
-    mask = reskinds_by_cokey["reskinds"].str.contains(reskind, case=False, na=False)
-    target_cokeys = set(reskinds_by_cokey.loc[mask, "cokey"].tolist())
-    filtered = comp_df[comp_df["cokey"].isin(target_cokeys)]
-    out = (
-        filtered.groupby("mukey")["comppct_r"]
-        .sum()
-        .reset_index(name="compct_sum")
+    # Apply weighted mean for each variable of interest
+    for var, colname in zip(vars_of_interest, columnames): #iterates through each variable in vars_of_interest
+        if var in sliced_df.columns:
+            # results stored in the site-level data 
+            result[colname] = (
+                sliced_df.groupby('cokey').apply(
+                    lambda group: weighted_mean(group, var, group['hzdepb_r'] - group['hzdept_r'])
+                )
+            )
+    # Additional aggregations (kgOrg and awc)
+    result[f'kgOrg.m2_{depth}cm'] = (
+        sliced_df.groupby('cokey').apply(lambda group: kgOrgC_sum(group))
     )
-    return out
+    result[f'awc_{depth}cm'] = (
+        sliced_df.groupby('cokey').apply(lambda group: awc_sum(group))
+    )
+
+    # Convert result to a DataFrame
+    result_df = pd.DataFrame(result).reset_index()
+    
+    # Merge component-level matadata to site-level data
+    result_df = result_df.merge(comp_df[['cokey', 'compname', 'mukey', 'comppct_r']], on='cokey', how='left')
+   
+    # Rearrange columns for final output
+    result_df = result_df[['mukey', 'cokey', 'compname', 'comppct_r'] + columnames + 
+                           [f'kgOrg.m2_{depth}cm', f'awc_{depth}cm']]
+    
+    # Rename specific columns
+    result_df.rename(columns={'comppct_r': 'comppct'}, inplace=True)
+
+    return result_df
+
+
+def MUaggregate(df, varname):
+    result = {}
+    grouped = df.groupby('mukey')
+    for name, group in grouped:
+        valid_data = group[varname].notna()
+        if valid_data.sum() == 0:
+            result[name] = np.nan
+        else:
+            weights = group.loc[valid_data, 'comppct']
+            values = group.loc[valid_data, varname]
+            weighted_avg = np.average(values, weights=weights)
+            result[name] = weighted_avg
+    return result
+
+def MUAggregate_wrapper(df, varnames):
+    results = {varname: MUaggregate(df, varname) for varname in varnames}
+    result_df = pd.DataFrame(results)
+    result_df['mukey'] = result_df.index.astype(int)
+    return result_df.reset_index(drop=True)
+
+# # ---------------------------------------------------------------------
+# # Misc helpers
+# # ---------------------------------------------------------------------
+def concat_names(x, decat=False):
+    """
+    Concatenates unique names from a list, handling NaN values.
+    If `decat` is True, splits input strings by '-' before processing.
+    """
+    if decat:
+        # Split each string by '-' and flatten the list
+        x = [item for sublist in [str(i).split('-') for i in x if pd.notnull(i)] for item in sublist]
+
+    # Handle the case where all elements are NaN
+    if np.all(pd.isnull(x)):
+        return np.nan
+ 
+    # Filter out NaN values and get unique values
+    unique_values = sorted(set([i for i in x if pd.notnull(i)]))
+
+    # If there is only one unique value, return it
+    if len(unique_values) == 1:
+        return unique_values[0]
+
+    # Otherwise, concatenate unique values with '-'
+    return '-'.join(unique_values)
+
+def reskind_comppct(reskind, comp_d, reskind_df):
+    filtered = comp_d[comp_d['cokey'].isin(reskind_df.loc[reskind_df['reskinds'].str.contains(reskind, case=False, na=False), 'cokey'])]
+    result = filtered.groupby('mukey')['comppct_r'].sum().reset_index(name='compct_sum')
+    return result
+
+

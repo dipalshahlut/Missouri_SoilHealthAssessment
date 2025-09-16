@@ -28,8 +28,10 @@ python spatial_mapping.py \
   --output-dir /path/to/data/aggResult \
   --method KMeans \
   --k 10 \
-  --vector-path /path/to/data/mupoly.shp
+  --vector-path /path/to/data/mupoly.shp \
+  
 """
+
 
 from __future__ import annotations
 
@@ -74,7 +76,7 @@ def _load_vector(vector_path: str) -> gpd.GeoDataFrame:
         raise ValueError(f"Vector file loaded but empty: {vector_path}")
     if gdf.geometry.is_empty.any():
         logging.warning("Some geometries are empty in the input vector.")
-    # Normalize join key
+    # Normalize join key (-> 'mukey' as string)
     cols = {c.lower(): c for c in gdf.columns}
     if "mukey" in cols:
         key_col = cols["mukey"]
@@ -87,10 +89,7 @@ def _load_vector(vector_path: str) -> gpd.GeoDataFrame:
         if guess:
             gdf = gdf.rename(columns={guess[0]: "mukey"})
         else:
-            raise KeyError(
-                "No 'mukey' (or 'MUKEY') column found in the vector data. "
-                "Please ensure your polygons contain a MU key column named 'mukey' or 'MUKEY'."
-            )
+            raise KeyError("No 'mukey' (or 'MUKEY') column found in the vector data.")
     gdf["mukey"] = gdf["mukey"].astype(str)
     return gdf
 
@@ -103,7 +102,6 @@ def _reproject_and_area(gdf: gpd.GeoDataFrame, target_crs: str = "EPSG:5070") ->
     # Compute area in CRS units (EPSG:5070 → square meters)
     if "area_m2" not in gdf.columns:
         gdf["area_m2"] = gdf.geometry.area
-    # Provide acres for convenience
     if "area_ac" not in gdf.columns:
         gdf["area_ac"] = gdf["area_m2"] * 0.000247105381
     return gdf
@@ -121,22 +119,11 @@ def create_spatial_products(
     *,
     write_gpkg: bool = True,
     write_shp: bool = True,
-    shp_minimal: bool = True
+    shp_minimal: bool = True,
 ) -> dict:
     """
     Merge clustered labels onto polygons and write a GPKG plus a static PNG map.
     Optionally also write an ESRI Shapefile (.shp).
-
-    Parameters
-    ----------
-    write_gpkg : bool
-        Write GeoPackage output (default True).
-    write_shp : bool
-        Write an ESRI Shapefile (.shp) (default True).
-    shp_minimal : bool
-        If True, the Shapefile will contain only a minimal set of safe fields:
-        ['mukey', 'cluster'] + geometry. This avoids 10-char field name limits.
-        If False, will attempt to write all fields (may be truncated by driver).
 
     Returns
     -------
@@ -178,42 +165,36 @@ def create_spatial_products(
     gpkg_path = None
     shp_path = None
 
-    # Write GeoPackage
+    # GeoPackage
     if write_gpkg:
         gpkg_path = os.path.join(shp_base_dir, f"{base}.gpkg")
-        # If file exists, try to remove to avoid layer conflicts
         if os.path.exists(gpkg_path):
             try:
                 os.remove(gpkg_path)
             except Exception as e:
-                logging.warning("Could not remove existing GPKG, will overwrite layers: %s", e)
+                logging.warning("Could not remove existing GPKG: %s", e)
         gdfm.to_file(gpkg_path, layer=base, driver="GPKG")
         logging.info("Wrote: %s", gpkg_path)
 
-    # Write ESRI Shapefile (with safe fields)
+    # Shapefile (safe fields)
     if write_shp:
         shp_dir = os.path.join(shp_base_dir, "shp")
         _ensure_dir(shp_dir)
         shp_path = os.path.join(shp_dir, f"{base}.shp")
 
-        # Build a shapefile-safe GeoDataFrame:
-        #  - duplicate cluster into a <=10 char col name 'cluster'
-        #  - include mukey (<=10)
-        #  - optionally keep minimal fields to avoid truncation issues
         gdf_shp = gdfm.copy()
         gdf_shp["cluster"] = gdf_shp[labels_col]
         keep_cols = ["mukey", "cluster", "geometry"] if shp_minimal else list(gdf_shp.columns)
         gdf_shp = gdf_shp[keep_cols]
 
-        # Write Shapefile
-        # Note: driver will truncate long field names automatically, but we proactively keep them safe.
         if os.path.exists(shp_path):
-            # remove prior shapefile sidecars if present
             for ext in (".shp", ".shx", ".dbf", ".prj", ".cpg"):
                 p = shp_path.replace(".shp", ext)
                 if os.path.exists(p):
-                    try: os.remove(p)
-                    except Exception: pass
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
         gdf_shp.to_file(shp_path, driver="ESRI Shapefile")
         logging.info("Wrote: %s", shp_path)
 
@@ -234,34 +215,20 @@ def create_spatial_products(
 
     return {"gpkg_path": gpkg_path, "shp_path": shp_path, "png_path": png_path, "merged_count": merged_count}
 
-# ---------------------------------------------------------------------
+
 # Convenience wrapper for programmatic use
-# ---------------------------------------------------------------------
-def make_spatial_products(base_dir: str, output_dir: str, method: str, k: int, **kwargs):
+def make_spatial_products(
+    base_dir: str,
+    output_dir: str,
+    method: str,
+    k: int,
+    **kwargs,
+):
     """
-    Convenience wrapper around create_spatial_products to allow:
-        make_spatial_products(BASE_DIR, OUTPUT_DIR, method="KMeans", k=10)
+    Convenience wrapper around create_spatial_products.
 
-    Parameters
-    ----------
-    base_dir : str
-        Path to input data (where mupoly.shp or mupoly.gpkg is located).
-    output_dir : str
-        Directory where cluster results and outputs are written.
-    method : str
-        Clustering method name (e.g., "KMeans", "Agglomerative").
-    k : int
-        Number of clusters.
-    kwargs : dict
-        Extra arguments passed through to create_spatial_products
-        (e.g., target_crs="EPSG:5070", write_shp=True/False, shp_minimal=True/False).
-
-    Notes
-    -----
-    - This helper constructs the vector_path automatically as
-      f"{base_dir}/mupoly.shp".
-    - If your polygons are stored in .gpkg, you can override:
-        make_spatial_products(..., vector_path=f"{base_dir}/mupoly.gpkg")
+    By default uses vector_path=f"{base_dir}/mupoly.shp".
+    Override via: vector_path=f"{base_dir}/mupoly.gpkg"
     """
     vector_path = kwargs.pop("vector_path", f"{base_dir}/mupoly.shp")
     return create_spatial_products(
@@ -316,12 +283,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         print("✅ Spatial mapping completed successfully.")
         print("Results saved in:", args.output_dir)
-        if out.get("gpkg_path"):
-            print(f"  - GeoPackage: {out['gpkg_path']}")
-        if out.get("shp_path"):
-            print(f"  - Shapefile : {out['shp_path']}")
-        if out.get("png_path"):
-            print(f"  - Map PNG   : {out['png_path']}")
+        if out.get("gpkg_path"): print(f"  - GeoPackage: {out['gpkg_path']}")
+        if out.get("shp_path"):  print(f"  - Shapefile : {out['shp_path']}")
+        if out.get("png_path"):  print(f"  - Map PNG   : {out['png_path']}")
         print(f"  - Polygons with labels: {out['merged_count']}")
         return 0
     except Exception as e:

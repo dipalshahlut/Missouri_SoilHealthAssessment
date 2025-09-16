@@ -1,18 +1,22 @@
+
 #!/usr/bin/env python3
 # data_preprocessing.py
 """
 Shared preprocessing utilities for the VAE + clustering pipeline.
 
 Functions:
-  - load_and_prepare_data(base_dir: str, analysis_depth: int)
+  - load_and_prepare_data(base_dir: str, analysis_depth: int = 30)
       -> tuple[pd.DataFrame, np.ndarray, list[str]]
 
   - scale_features(X: np.ndarray)
       -> tuple[np.ndarray, sklearn.base.TransformerMixin]
 
 Notes:
-- Expects a CSV named: aggResult/MO_{analysis_depth}cm_for_clustering.csv
-- Selects the 10 clustering feature columns observed in your logs.
+- Expects CSV: {base_dir}/aggResult/MO_{analysis_depth}cm_for_clustering.csv
+- Matches the preprocessing used in Clustering-VAE_AlgorithmEval.py:
+  • mean imputation (on area_ac, MnRs_dep, and depth-specific features)
+  • RobustScaler on ['MnRs_dep'] + cluster_cols_base (excluding area_ac)
+  • optional removal of known MUKEYs used by the pipeline
 """
 
 from __future__ import annotations
@@ -23,113 +27,60 @@ from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import RobustScaler
+from sklearn.impute import SimpleImputer
 
-
-# Default feature set you used at 30 cm (from your run logs)
-DEFAULT_FEATURE_COLS_30CM: List[str] = [
-    "MnRs_dep",
-    "clay_30cm",
-    "sand_30cm",
-    "om_30cm",
-    "cec_30cm",
-    "bd_30cm",
-    "ec_30cm",
-    "pH_30cm",
-    "ksat_30cm",
-    "awc_30cm",
+# Columns used at 30 cm (cluster_cols_base + MnRs_dep for scaling)
+DEFAULT_FEATURE_COLS_30CM_BASE: List[str] = [
+    "clay_30cm", "sand_30cm", "om_30cm", "cec_30cm",
+    "bd_30cm", "ec_30cm", "pH_30cm", "ksat_30cm", "awc_30cm",
 ]
+DEFAULT_FEATURES_TO_SCALE_30CM: List[str] = ["MnRs_dep"] + DEFAULT_FEATURE_COLS_30CM_BASE
 
-
-def scale_features(X: np.ndarray) -> Tuple[np.ndarray, StandardScaler]:
-    """
-    Scale features with StandardScaler.
-
-    Parameters
-    ----------
-    X : np.ndarray
-        2D array (n_samples, n_features).
-
-    Returns
-    -------
-    X_scaled : np.ndarray
-        Scaled features.
-    scaler : StandardScaler
-        Fitted scaler (persist if needed).
-    """
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    return X_scaled, scaler
-
+# MUKEYs filtered in the main script before processing
+DEFAULT_EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
 
 def _resolve_input_csv(base_dir: str, analysis_depth: int) -> str:
-    """
-    Build the expected path to the clustering CSV.
-    Example for depth=30:
-      {base_dir}/aggResult/MO_30cm_for_clustering.csv
-    """
+    """{base_dir}/aggResult/MO_{analysis_depth}cm_for_clustering.csv"""
     fname = f"MO_{analysis_depth}cm_for_clustering.csv"
-    path = os.path.join(base_dir, "aggResult", fname)
-    return path
+    return os.path.join(base_dir, "aggResult", fname)
 
-
-def _pick_feature_columns(df: pd.DataFrame, analysis_depth: int) -> List[str]:
+def _depth_cols(analysis_depth: int) -> Tuple[List[str], List[str]]:
     """
-    Choose clustering feature columns based on depth.
-    Currently uses the 30cm list (observed in your logs).
-    Extend here if you later add other depths.
+    Returns (cluster_cols_base, features_to_scale) for a given depth,
+    mirroring the main script:
+      cluster_cols_all = ['area_ac','MnRs_dep'] + cluster_cols_base
+      features_to_scale = ['MnRs_dep'] + cluster_cols_base
     """
     if analysis_depth == 30:
-        wanted = DEFAULT_FEATURE_COLS_30CM
+        base = DEFAULT_FEATURE_COLS_30CM_BASE
+        to_scale = DEFAULT_FEATURES_TO_SCALE_30CM
     else:
-        # Try depth-aware names like "clay_{depth}cm", "sand_{depth}cm", etc.,
-        # and keep the common, depth-agnostic features if present.
-        depth_suffix = f"_{analysis_depth}cm"
-        candidates = [
-            f"clay{depth_suffix}",
-            f"sand{depth_suffix}",
-            f"om{depth_suffix}",
-            f"cec{depth_suffix}",
-            f"bd{depth_suffix}",
-            f"ec{depth_suffix}",
-            f"pH{depth_suffix}",
-            f"ksat{depth_suffix}",
-            f"awc{depth_suffix}",
+        suf = f"_{analysis_depth}cm"
+        base = [
+            f"clay{suf}", f"sand{suf}", f"om{suf}", f"cec{suf}",
+            f"bd{suf}", f"ec{suf}", f"pH{suf}", f"ksat{suf}", f"awc{suf}",
         ]
-        wanted = ["MnRs_dep"] + candidates
-
-    # Keep only columns that exist; warn if any are missing.
-    cols = [c for c in wanted if c in df.columns]
-    missing = [c for c in wanted if c not in df.columns]
-    if missing:
-        logging.warning("Some expected feature columns are missing: %s", missing)
-    if not cols:
-        raise ValueError("No clustering feature columns found in the input dataframe.")
-    return cols
-
+        to_scale = ["MnRs_dep"] + base
+    return base, to_scale
 
 def load_and_prepare_data(
     base_dir: str,
     analysis_depth: int = 30,
+    drop_mukeys: bool = True,
+    excluded_mukeys: List[int] | None = None,
 ) -> Tuple[pd.DataFrame, np.ndarray, List[str]]:
     """
-    Load the clustering table, select features, scale them, and return artifacts.
-
-    Parameters
-    ----------
-    base_dir : str
-        Base data directory (the parent of 'aggResult').
-    analysis_depth : int
-        Depth in cm (e.g., 30).
+    Load the CSV, align columns, mean-impute, and Robust-scale features.
 
     Returns
     -------
     df : pd.DataFrame
-        The full dataframe loaded from the CSV (unchanged, for downstream merges).
+        The dataframe after optional MUKEY filtering and imputation (unchanged columns kept).
     data_scaled : np.ndarray
-        Scaled feature matrix for VAE/clustering (row order aligned with df).
-    cluster_cols : list[str]
-        The exact feature columns used (for reproducibility).
+        Scaled matrix for VAE/clustering (row order aligned with df).
+    features_to_scale : list[str]
+        The exact feature columns used for scaling (for reproducibility).
     """
     csv_path = _resolve_input_csv(base_dir, analysis_depth)
     logging.info("Loading data from: %s", csv_path)
@@ -139,10 +90,35 @@ def load_and_prepare_data(
     df = pd.read_csv(csv_path)
     logging.info("Data loaded. Shape: %s", df.shape)
 
-    cluster_cols = _pick_feature_columns(df, analysis_depth)
-    logging.info("Selected %d columns for clustering: %s", len(cluster_cols), cluster_cols)
+    # Optional MUKEY filtering to mirror the main script
+    if drop_mukeys and 'mukey' in df.columns:
+        to_exclude = excluded_mukeys if excluded_mukeys is not None else DEFAULT_EXCLUDE_MUKEYS
+        before = len(df)
+        df = df[~df['mukey'].isin(to_exclude)]
+        logging.info("Filtered MUKEYs: removed %d rows (%s)", before - len(df), to_exclude)
 
-    X = df[cluster_cols].to_numpy(dtype=float)
-    data_scaled, _ = scale_features(X)
+    # Build column sets to mirror cluster_cols_all and features_to_scale
+    cluster_cols_base, features_to_scale = _depth_cols(analysis_depth)
+    cluster_cols_all = ['MnRs_dep'] + cluster_cols_base
 
-    return df, data_scaled, cluster_cols
+    # Validate presence (the main script requires area_ac in the file)
+    missing_all = [c for c in cluster_cols_all if c not in df.columns]
+    if missing_all:
+        raise ValueError(f"Missing required data columns: {missing_all}")
+
+    # Mean-impute across ALL clustering columns (including area_ac)
+    imputer = SimpleImputer(strategy='mean')
+    data_imputed = pd.DataFrame(
+        imputer.fit_transform(df[cluster_cols_all]),
+        columns=cluster_cols_all,
+        index=df.index
+    )
+    logging.info("Imputed missing values with mean across %d columns.", len(cluster_cols_all))
+
+    # Robust-scale ONLY the features_to_scale (exclude area_ac)
+    scaler = RobustScaler()
+    X = data_imputed[features_to_scale].to_numpy(dtype=float)
+    X_scaled = scaler.fit_transform(X)
+    logging.info("Applied RobustScaler to %d features (excluding 'area_ac').", len(features_to_scale))
+
+    return df, X_scaled, features_to_scale

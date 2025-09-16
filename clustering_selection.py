@@ -90,7 +90,7 @@ def plot_silhouette_comparison(scores: dict, k_range: range, methods: list[str],
 def _fit_predict(method: str, Z: np.ndarray, k: int) -> np.ndarray:
     m = method.lower()
     if m == "kmeans":
-        model = KMeans(n_clusters=k, n_init="auto", random_state=RANDOM_STATE)
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)#, n_init="auto", random_state=RANDOM_STATE)
         return model.fit_predict(Z)
     elif m == "agglomerative":
         model = AgglomerativeClustering(n_clusters=k)
@@ -99,7 +99,7 @@ def _fit_predict(method: str, Z: np.ndarray, k: int) -> np.ndarray:
         model = Birch(n_clusters=k)
         return model.fit_predict(Z)
     elif m == "gmm":
-        model = GaussianMixture(n_components=k, covariance_type="full", random_state=RANDOM_STATE)
+        model = GaussianMixture(n_components=k, random_state=42) #covariance_type="full",
         model.fit(Z)
         return model.predict(Z)
     else:
@@ -308,12 +308,14 @@ def run(output_dir: Path, methods: list[str], k_min: int, k_max: int) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    # Default: point to repo's standard output folder
+    default_output = Path(__file__).resolve().parent / "data" / "aggResult"
     parser = argparse.ArgumentParser(description="Stage 3 — Multi-Algorithm Clustering & Best Results (self-contained)")
     parser.add_argument(
         "--output-dir",
         type=Path,
         required=False,
-        default=Path("/Users/dscqv/Desktop/SHA_copy/data/aggResult"),
+        default=default_output,
         help="Directory with Stage-1/2 outputs and where Stage-3 outputs will be written.",
     )
     parser.add_argument(
