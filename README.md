@@ -172,7 +172,7 @@ This project builds upon:
 - GeoPandas spatial analysis tools
 - TensorFlow/Keras for VAE implementation
 - Article:
-```text
+```
 ├── Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.
 ├── A regional soil classification framework to improve soil health diagnosis and management.
 
