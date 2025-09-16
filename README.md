@@ -126,8 +126,8 @@ soil-analysis-pipeline/
 │   ├── muagg.csv
 │   ├── corestrictions.csv
 │   ├── chorizon.csv
-│   └── cfrag.csv
-└── aggResult/   # outputs
+│   ├── cfrag.csv
+│   └── aggResult/   # outputs
 ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──                                                                                                    │
 │   clustering_selection.py  --->  clustering_evaluation.py  --->  clustering_algorithms.py         │
 │   (CLI + Input/Output)           (metrics, model selection)    (model factory + fit/predict)      │
