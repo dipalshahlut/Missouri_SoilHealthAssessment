@@ -19,10 +19,15 @@ import time
 import traceback
 from typing import Iterable
 from pathlib import Path
+
 from vae_training import train_and_save
 from clustering_selection import score_many_clusterings
 from clustering_selection import main as run_select
 from clustering_algorithms import run_single_clustering_io
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import shap
+import matplotlib.ticker as mticker
 from Visualization import make_all_plots
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
@@ -108,7 +113,7 @@ def step3_vae():
     banner("STEP 3 — vae_training.py (Stage 2: VAE & latents)")
     try:
         train_and_save(Path(OUTPUT_DIR), VAE_LATENT_DIM, hidden_dim1=64,
-        hidden_dim2=32, epochs=VAE_EPOCHS, batch_size=256, lr=1e-3)
+        hidden_dim2=32, epochs=VAE_EPOCHS, batch_size=64, lr=1e-3)
     except Exception as e:
         fail("vae_training.py failed", e)
 

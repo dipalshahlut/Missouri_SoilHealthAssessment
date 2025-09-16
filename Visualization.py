@@ -40,7 +40,11 @@ import argparse
 import logging
 from typing import Optional
 from pathlib import Path
-
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import shap
+import matplotlib.ticker as mticker
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -55,6 +59,17 @@ from sklearn.feature_selection import f_classif
 
 # MUKEYs filtered during Stage-1; used to auto-align df with z if lengths differ
 DEFAULT_EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
+
+DEFAULT_COLOR_PALETTE = [
+    "#a6cee3", "#1f78b4", "#b2df8a", "#33a02c", "#fb9a99",
+    "#e31a1c", "#fdbf6f", "#ff7f00", "#cab2d6", "#6a3d9a",
+    # additional complementary colors
+    "#b15928",  # earthy brown
+    "#ffff99",  # soft yellow
+    "#8dd3c7",  # teal cyan
+    "#bebada",  # lavender purple
+    "#fb8072",  # salmon pink
+]
 
 # -----------------------
 # Logging & small helpers
@@ -294,8 +309,30 @@ def plot_area(df, labels_col, out_path, area_col="area_ac"):
     plt.savefig(out_path, dpi=300)
     plt.close()
 
-def plot_per_feature_boxplots(df, labels_col, X_scaled, out_dir):
-    """Save one PNG per feature: feature (scaled) vs cluster labels."""
+
+def plot_per_feature_boxplots(
+    df,
+    labels_col,
+    X_scaled,
+    out_dir,
+    df_unscaled=None,          # optional: compute stats from unscaled values
+    stats_from="scaled",       # "scaled" or "unscaled" (where to compute mean/median/Q1/Q3)
+    showfliers=False,
+    half=0.28,                 # half-width of the little stat bars
+    draw_global_mean=True,
+    global_mean_color="red",
+    global_mean_ls="--",
+    global_mean_lw=1.5,
+    dpi=300,
+):
+    """
+    Save one PNG per feature: feature (scaled) vs cluster labels, with overlays:
+      - Global mean (horizontal dashed line)
+      - Per-cluster mean (thick bar), median (diamond marker), Q1/Q3 (thin bars)
+
+    If `df_unscaled` is provided and `stats_from="unscaled"`, the overlays are computed
+    on the unscaled values while the boxplots are still drawn from X_scaled.
+    """
     if not _SEABORN:
         logging.info("Skipping per-feature boxplots: seaborn not available.")
         return
@@ -307,23 +344,159 @@ def plot_per_feature_boxplots(df, labels_col, X_scaled, out_dir):
                         len(X_scaled), len(df))
         return
 
-    os.makedirs(out_dir, exist_ok=True)  # ensure the directory itself exists
-    dfp = pd.concat([df[[labels_col]], X_scaled], axis=1)
-    dfp[labels_col] = dfp[labels_col].astype(int) + 1   # shift cluster IDs
+    os.makedirs(out_dir, exist_ok=True)
 
+    # ---- Build plotting frames ----
+    dfp_scaled = pd.concat([df[[labels_col]].reset_index(drop=True),
+                            X_scaled.reset_index(drop=True)], axis=1)
+
+    # Shift labels to start at 1, ensure ints
+    try:
+        dfp_scaled[labels_col] = dfp_scaled[labels_col].astype(int) + 1
+    except Exception:
+        # if labels are strings, just leave them; don’t shift
+        pass
+
+    # Order is 1..k if labels are numeric; otherwise sorted unique
+    if pd.api.types.is_integer_dtype(dfp_scaled[labels_col]):
+        k = int(dfp_scaled[labels_col].nunique())
+        order = list(range(1, k + 1))
+    else:
+        order = sorted(dfp_scaled[labels_col].unique(), key=lambda x: (isinstance(x, str), x))
+
+    pos_by_cat = {cat: i for i, cat in enumerate(order)}  # x positions (0..n-1) for overlay bars
+
+    # Choose palette
+    try:
+        DEFAULT_COLOR_PALETTE  # check if defined globally
+        custom_palette = DEFAULT_COLOR_PALETTE
+    except NameError:
+        custom_palette = None
+
+    if custom_palette is None:
+        palette = sns.color_palette("tab20", len(order))
+    else:
+        if len(custom_palette) < len(order):
+            logging.warning("custom palette has %d colors but k=%d; colors will repeat.",
+                            len(custom_palette), len(order))
+        palette = custom_palette[:len(order)]
+
+    # Stats source: scaled vs unscaled
+    if stats_from == "unscaled" and df_unscaled is not None and len(df_unscaled) == len(df):
+        dfp_stats = pd.concat([df[[labels_col]].reset_index(drop=True),
+                               df_unscaled.reset_index(drop=True)], axis=1).copy()
+        # shift labels the same way for grouping
+        try:
+            dfp_stats[labels_col] = dfp_stats[labels_col].astype(int) + 1
+        except Exception:
+            pass
+        y_label_suffix = ""   # raw units
+    else:
+        if stats_from == "unscaled":
+            logging.warning("stats_from='unscaled' requested but df_unscaled missing/mismatched; using scaled.")
+        dfp_stats = dfp_scaled
+        y_label_suffix = " (scaled)"
+
+    # Drop rows missing labels
+    dfp_scaled = dfp_scaled.dropna(subset=[labels_col])
+    dfp_stats  = dfp_stats.loc[dfp_scaled.index]
+
+    # Ensure label dtype alignment
+    try:
+        dfp_stats[labels_col] = dfp_stats[labels_col].astype(dfp_scaled[labels_col].dtype)
+    except Exception:
+        pass
+
+    # ---- Plot each feature ----
     for feat in X_scaled.columns:
-        plt.figure(figsize=(7.2, 5.0))
-        sns.boxplot(x=dfp[labels_col], y=dfp[feat], showfliers=False)
-        plt.xlabel("Cluster")
-        plt.ylabel(f"{feat} (scaled)")
-        plt.title(f"{feat} by cluster")
+        if feat not in dfp_scaled.columns or feat not in dfp_stats.columns:
+            logging.warning("Feature %s not present in plotting/stats frames; skipping.", feat)
+            continue
+
+        fig, ax = plt.subplots(figsize=(7.4, 5.0))
+
+        # Base boxplot (from scaled data)
+        sns.boxplot(
+            data=dfp_scaled,
+            x=labels_col,
+            y=feat,
+            order=order,
+            showfliers=showfliers,
+            palette=palette,
+            ax=ax,
+        )
+
+        # Global mean (from chosen stats frame)
+        if draw_global_mean:
+            try:
+                global_mean = float(dfp_stats[feat].mean())
+                ax.axhline(global_mean, color=global_mean_color,
+                           linestyle=global_mean_ls, linewidth=global_mean_lw, zorder=1)
+            except Exception as e:
+                logging.debug("Global mean line skipped for %s: %s", feat, e)
+
+        # Per-cluster overlays: mean, median, Q1, Q3 (from chosen stats frame)
+        try:
+            stats = (
+                dfp_stats.groupby(labels_col, observed=True)[feat]
+                .agg(
+                    mean="mean",
+                    q1=lambda s: s.quantile(0.25),
+                    med="median",
+                    q3=lambda s: s.quantile(0.75),
+                )
+                .reindex(order)
+            )
+            #half = 0.28
+            for cat, row in stats.iterrows():
+                xpos = pos_by_cat[cat]
+                # Draw centered bars at each category position
+                m = row["mean"]
+                if pd.notna(m):
+                    ax.hlines(float(m), xpos - half, xpos + half,
+                              colors="black", linewidth=2.0, zorder=4)
+
+                med = row["med"]
+                if pd.notna(med):
+                    ax.scatter([xpos], [float(med)], s=40, zorder=5,
+                               marker="D", facecolors="none", edgecolors="black")
+
+                q1 = row["q1"]
+                if pd.notna(q1):
+                    ax.hlines(float(q1), xpos - half, xpos + half,
+                              colors="black", linewidth=1.2, zorder=4)
+
+                q3 = row["q3"]
+                if pd.notna(q3):
+                    ax.hlines(float(q3), xpos - half, xpos + half,
+                              colors="black", linewidth=1.2, zorder=4)
+        except Exception as e:
+            logging.debug("Per-cluster stat overlays skipped for %s: %s", feat, e)
+
+        # === Legend ===
+        from matplotlib.lines import Line2D # For custom legends
+        gm_handle = Line2D([0], [0], color="red", linestyle="--", lw=1.5,
+                           label=f"Global Mean (Unscaled {global_mean:.1f})")
+        mean_handle = Line2D([0], [0], color="black", lw=2.0, label="Cluster Mean")
+        med_handle = Line2D([0], [0], marker="D", markersize=6,
+                            markerfacecolor="none", markeredgecolor="black",
+                            linestyle="None", label="Cluster Median")
+        ax.legend(handles=[gm_handle, mean_handle, med_handle],
+                  loc="upper right", fontsize=8, frameon=False)
+
+
+        ax.set_xlabel("Cluster")
+        ax.set_ylabel(f"{feat}{y_label_suffix}")
+        ax.set_title(f"{feat} by cluster")
         plt.tight_layout()
+
         out_file = os.path.join(out_dir, f"box_{feat}_{labels_col}.png")
-        plt.savefig(out_file, dpi=300)
-        plt.close()
+        plt.savefig(out_file, dpi=dpi)
+        plt.close(fig)
+
 
 def plot_centroid_heatmap(df, labels_col, X_scaled, out_path):
-    """Clusters × features mean heatmap (on scaled features)."""
+    """Clusters × features mean heatmap (z-score normalized, with numbers in cells)."""
     if not _SEABORN:
         logging.info("Skipping centroid heatmap: seaborn not available.")
         return
@@ -331,56 +504,199 @@ def plot_centroid_heatmap(df, labels_col, X_scaled, out_path):
         logging.info("Skipping centroid heatmap: scaled data missing.")
         return
     if len(df) != len(X_scaled):
-        logging.warning("Skipping centroid heatmap: scaled matrix rows != df rows (%d vs %d).",
-                        len(X_scaled), len(df))
+        logging.warning(
+            "Skipping centroid heatmap: scaled matrix rows != df rows (%d vs %d).",
+            len(X_scaled), len(df),
+        )
         return
 
-    mat = pd.concat([df[[labels_col]], X_scaled], axis=1).groupby(labels_col).mean().sort_index()
-    mat_z = (mat - mat.mean(axis=0)) / (mat.std(axis=0, ddof=0) + 1e-12)
+    # Combine labels + features
+    dfp = pd.concat([df[[labels_col]].reset_index(drop=True),
+                     X_scaled.reset_index(drop=True)], axis=1)
 
-    plt.figure(figsize=(max(8, X_scaled.shape[1]*0.5), 6))
-    ax = sns.heatmap(mat_z.T, cmap="YlGnBu", center=0, linewidths=0.3,
-                     cbar_kws={"label": "Z-score of feature mean"})
-    ax.set_xlabel("Cluster")
-    ax.set_ylabel("Feature")
-    plt.title("Cluster centroids (scaled, z-normalized)")
+    # Robust label remap → 1..k for grouping & display
+    labs = dfp[labels_col]
+    # if convertible to int, fine; else just keep as-is
+    try:
+        labs = labs.astype(int)
+    except Exception:
+        pass
+    uniq = sorted(pd.unique(labs))
+    disp_map = {orig: i+1 for i, orig in enumerate(uniq)}
+    dfp["cluster_disp"] = labs.map(disp_map)
+
+    # Centroids on scaled features
+    # *** Only aggregate over the feature columns ***
+    feature_cols = list(X_scaled.columns)          # <- excludes the label column
+    centroids = dfp.groupby("cluster_disp")[feature_cols].mean().sort_index()
+
+    # Z-score normalize per feature (column-wise)
+    eps = 1e-12
+    centroids_z = (centroids - centroids.mean(axis=0)) / (centroids.std(axis=0, ddof=0) + eps)
+
+    # Rows = features, Cols = clusters 1..k
+    centroids_plot = centroids_z.T.copy()
+    k = centroids_plot.shape[1]
+    centroids_plot.columns = [str(c) for c in centroids_plot.columns]  # already 1..k
+
+    # Symmetric color scale (optional but nice for z-scores)
+    vmax = float(np.nanmax(np.abs(centroids_plot.values)))
+    vmin = -vmax
+
+    plt.figure(figsize=(10, 6))
+    ax = sns.heatmap(
+        centroids_plot,
+        cmap="YlGnBu",
+        center=0,
+        vmin=vmin, vmax=vmax,        # symmetric scale
+        linewidths=0.5,
+        annot=True,
+        fmt=".2f",
+        cbar=True,
+        cbar_kws={"label": "Z-score of feature mean"},
+    )
+
+    ax.set_xlabel(f"Number of Clusters (k={k})", fontsize=14, fontweight="bold")
+    ax.set_ylabel("Feature", fontsize=14, fontweight="bold")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+
+    # Colorbar styling
+    try:
+        cbar = ax.collections[0].colorbar
+        cbar.set_label("Z-score of feature mean", fontsize=14, fontweight="bold")
+        cbar.ax.tick_params(labelsize=12)
+    except Exception:
+        pass
+
     plt.tight_layout()
     _ensure_parent_dir(out_path)
-    plt.savefig(out_path, dpi=300)
+    plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close()
 
-def plot_feature_importance_heatmap(df, labels_col, X_scaled, out_path):
-    """Feature importance via ANOVA F-score; 1-row heatmap (features as columns)."""
+
+def plot_feature_importance_heatmap(
+    df,
+    labels_col,
+    X_scaled,
+    out_path,
+    random_state=42,
+    test_size=0.2,
+    n_estimators=200,
+    annotate=True,
+    dpi=300,
+):
+    """
+    RF + SHAP feature-importance heatmap in PERCENT:
+      - mean(|SHAP|) per (cluster, feature) on held-out set
+      - column-normalized so each cluster sums to 100%
+      - cells annotated as 'xx.x%'
+    """
     if not _SEABORN:
-        logging.info("Skipping feature-importance heatmap: seaborn not available.")
+        logging.info("Skipping FI heatmap: seaborn not available.")
+        return
+    try:
+        import shap  # ensure available
+        _ = shap.__version__
+    except Exception:
+        logging.info("Skipping FI heatmap: SHAP not available.")
         return
     if X_scaled is None:
-        logging.info("Skipping feature-importance heatmap: scaled data missing.")
+        logging.info("Skipping FI heatmap: scaled data missing.")
         return
     if len(df) != len(X_scaled):
-        logging.warning("Skipping feature-importance heatmap: scaled matrix rows != df rows (%d vs %d).",
+        logging.warning("Skipping FI heatmap: scaled matrix rows != df rows (%d vs %d).",
                         len(X_scaled), len(df))
         return
 
-    y = df[labels_col].astype(int).values
-    X = X_scaled.values
-    try:
-        F, _ = f_classif(X, y)  # (n_features,)
-    except Exception as e:
-        logging.warning("ANOVA F computation failed: %s", e)
-        return
+    # Ensure DataFrame to preserve feature names
+    if not isinstance(X_scaled, pd.DataFrame):
+        X_scaled = pd.DataFrame(X_scaled, columns=[f"feat{i}" for i in range(X_scaled.shape[1])])
 
-    imp = pd.Series(F, index=X_scaled.columns)
-    plt.figure(figsize=(max(6, len(imp)*0.4), 3.6))
-    ax = sns.heatmap(imp.to_frame("ANOVA_F").T, cmap="YlGnBu",
-                     cbar_kws={"label": "ANOVA F"})
-    ax.set_xlabel("Feature")
-    ax.set_ylabel("")
-    plt.title("Feature importance vs clusters (ANOVA F)")
+    X = X_scaled.values
+    y = df[labels_col].values
+    feat_names = list(X_scaled.columns)
+
+    # Train/test split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=random_state, stratify=y
+    )
+
+    # Random Forest
+    rf = RandomForestClassifier(n_estimators=200,
+                                random_state=random_state, n_jobs=-1)
+    rf.fit(X_train, y_train)
+
+    # Accuracy (log only)
+    y_pred = rf.predict(X_test)
+    acc = accuracy_score(y_test, y_pred)
+    logging.info("Random Forest accuracy on predicting clusters: %.3f", acc)
+
+    # SHAP values → shape (n_test, n_features, n_classes)
+    explainer = shap.TreeExplainer(rf)
+    shap_vals = explainer.shap_values(X_test)
+    if isinstance(shap_vals, list):
+        shap_arr = np.transpose(np.stack(shap_vals, axis=0), (1, 2, 0))
+    elif isinstance(shap_vals, np.ndarray) and shap_vals.ndim == 3:
+        if shap_vals.shape[0] == X_test.shape[0] and shap_vals.shape[1] == X_test.shape[1]:
+            shap_arr = shap_vals
+        elif shap_vals.shape[1] == X_test.shape[0] and shap_vals.shape[2] == X_test.shape[1]:
+            shap_arr = np.transpose(shap_vals, (1, 2, 0))
+        else:
+            raise ValueError(f"Unexpected SHAP array shape: {shap_vals.shape}")
+    else:
+        raise ValueError("Unsupported SHAP output type/shape.")
+
+    # mean(|SHAP|) across samples → (features × classes)
+    mean_abs = np.abs(shap_arr).mean(axis=0)
+
+    k = len(rf.classes_)
+    col_labels = [f"Cluster {i+1}" for i in range(k)]  # 1..k display labels
+
+    heat_df = pd.DataFrame(mean_abs, index=feat_names, columns=col_labels)
+
+    # Column-normalize to 100%
+    heat_pct = heat_df.div(heat_df.sum(axis=0), axis=1) * 100.0
+
+    # Prepare string annotations like "12.3%"
+    annot_strings = heat_pct.round(1).astype(str) + "%"
+
+    # Plot
+    plt.figure(figsize=(max(12, 0.6*len(feat_names)), max(6, 0.4*k + 4)))
+    ax = sns.heatmap(
+        heat_pct,
+        cmap="YlGnBu",
+        linewidths=0.5,
+        cbar=True,
+        cbar_kws={"label": "Mean |SHAP| (%)"},
+        annot=False,   # we'll place our own strings for exact control
+    )
+    # Place our percent strings
+    for (i, j), _ in np.ndenumerate(heat_pct.values):
+        ax.text(j + 0.5, i + 0.5, annot_strings.iat[i, j],
+                ha="center", va="center", fontsize=9)
+
+    # Axes & ticks
+    ax.set_ylabel("Feature", fontsize=12, fontweight="bold")
+    ax.set_xlabel(f"Number of Clusters (k={k})", fontsize=12, fontweight="bold")
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=0)
+    ax.set_yticklabels(ax.get_yticklabels(), rotation=0)
+
+    # Colorbar as %
+    try:
+        cbar = ax.collections[0].colorbar
+        cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=100, decimals=0))
+        cbar.set_label("Mean |SHAP| (%)", fontsize=11, fontweight="bold", rotation=270, labelpad=14)
+    except Exception:
+        pass
+
     plt.tight_layout()
     _ensure_parent_dir(out_path)
-    plt.savefig(out_path, dpi=300)
+    plt.savefig(out_path, dpi=dpi, bbox_inches="tight")
     plt.close()
+
+    return {"rf": rf, "heat_pct": heat_pct, "accuracy": acc}
+
 
 # -----------------------
 # Orchestrator
@@ -429,7 +745,7 @@ def make_all_plots(
         plot_boxplots(df, col, xs, boxplot_out)
         plot_per_feature_boxplots(df, col, xs, per_feat_dir)
         plot_centroid_heatmap(df, col, xs, centroid_out)
-        plot_feature_importance_heatmap(df, col, xs, fimps_out)
+        plot_feature_importance_heatmap(df, col, xs, per_feat_dir)
     else:
         logging.info("Scaled data not found; skipping boxplots/centroid/feature-importance/per-feature plots.")
 
@@ -450,7 +766,8 @@ def make_all_plots(
 # -----------------------
 def _build_argparser():
     p = argparse.ArgumentParser(description="Generate visualizations for clustering results.")
-    p.add_argument("-o", "--output-dir", required=True)
+    p.add_argument("--base-dir", default=None, help="Project base directory; outputs go to BASE_DIR/data/aggResult")
+    p.add_argument("-o", "--output-dir", default=None, help="Override output directory (if not using --base-dir).")
     p.add_argument(
         "-m", "--method", required=True,
         choices=["KMeans", "Agglomerative", "Birch", "GMM", "FuzzyCMeans"]
@@ -473,9 +790,16 @@ def _build_argparser():
 def main(argv=None) -> int:
     args = _build_argparser().parse_args(argv)
     _setup_logging(args.verbose)
+    # Derive output_dir
+    if args.base_dir:
+        output_dir = os.path.join(args.base_dir, "aggResult")
+    elif args.output_dir:
+        output_dir = args.output_dir
+    else:
+        raise SystemExit("Provide either --base-dir or --output-dir")
     try:
         out = make_all_plots(
-            args.output_dir, args.method, args.k,
+            output_dir, args.method, args.k,
             z_path=args.z_path,
             df_with_labels_path=args.df_with_labels_path,
             scaled_path=args.scaled_path,

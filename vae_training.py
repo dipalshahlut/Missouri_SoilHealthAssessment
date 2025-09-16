@@ -131,12 +131,13 @@ def train_vae(X: np.ndarray, *, latent_dim: int, hidden_dim1: int = 64, hidden_d
     ds = TensorDataset(X_tensor)
     dl = DataLoader(ds, batch_size=batch_size, shuffle=True, num_workers=0, drop_last=False)
 
-    model = VAE(input_dim=X.shape[1], latent_dim=latent_dim, hidden_dim1=hidden_dim1, hidden_dim2=hidden_dim2)
+    model = VAE(input_dim=X.shape[1], latent_dim=latent_dim)#, hidden_dim1=hidden_dim1, hidden_dim2=hidden_dim2)
     optim = torch.optim.Adam(model.parameters(), lr=lr)
 
     train_losses = []
-    model.train()
+    #model.train()
     for epoch in range(1, epochs + 1):
+        model.train()
         epoch_loss = 0.0
         for (xb,) in dl:
             xb = xb[0]
@@ -185,7 +186,7 @@ def run_stage2(
     output_dir: str, *,
     latent_dim: int,
     hidden_dim1: int = 64, hidden_dim2: int = 32,
-    epochs: int = 50, batch_size: int = 256, lr: float = 1e-3,
+    epochs: int = 100, batch_size: int = 256, lr: float = 1e-3,
 ):
     df, X, row_keys = load_stage1_artifacts(output_dir)
     model = train_vae(X, latent_dim=latent_dim,
