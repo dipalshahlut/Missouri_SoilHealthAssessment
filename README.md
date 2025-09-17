@@ -1,4 +1,4 @@
-# SSURGO Soil Analysis System
+# SSURGO Soil Health Analysis System
 
 A comprehensive Python toolkit for processing and analyzing SSURGO (Soil Survey Geographic Database) data using advanced machine learning techniques including Variational Autoencoders (VAE) and clustering algorithms.
 
@@ -63,7 +63,7 @@ All input data should follow SSURGO database schema standards. The system expect
 - Complete attribute tables with required fields
 
 ## Pipeline Analysis Workflow
-1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
+1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files listed below (2-13)
 2. **main.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
 3. **data_preparation.py** → scales data, outputs data_scaled.npy
 4. **vae_training.py** → trains VAE, outputs z_mean.npy
@@ -128,7 +128,7 @@ soil-analysis-pipeline/
 │   ├── chorizon.csv
 │   ├── cfrag.csv
 │   └── aggResult/   # outputs
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──                                                                                                    │
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──                                                                                             
 │   clustering_selection.py  --->  clustering_evaluation.py  --->  clustering_algorithms.py         │
 │   (CLI + Input/Output)           (metrics, model selection)    (model factory + fit/predict)      │
 │                                                                                                   │
@@ -168,10 +168,8 @@ If you use this software in your research, please cite:
 ## Acknowledgments
 This project builds upon:
 - SSURGO database from USDA-NRCS
-- Scikit-learn machine learning library
-- GeoPandas spatial analysis tools
-- TensorFlow/Keras for VAE implementation
-- Article: ```text
+- Article:
+```text
 ├── Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.
 ├── A regional soil classification framework to improve soil health diagnosis and management.
 
