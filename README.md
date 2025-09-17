@@ -73,7 +73,7 @@ All input data should follow SSURGO database schema standards. The system expect
 
 ## Pipeline Analysis Workflow
 1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
-2. **main.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
+2. **aggregation.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
 3. **data_preparation.py** → scales data, outputs data_scaled.npy
 4. **vae_training.py** → trains VAE, outputs z_mean.npy
 5. **clustering_evaluation.py** → clustering model selection, label generation over a latent feature space
@@ -114,7 +114,7 @@ soil-analysis-pipeline/
 ├── README.md
 ├── requirements.txt
 ├── sha_pipeline_runbook.py
-├── main.py
+├── aggregation.py
 ├── data_preparation.py
 ├── vae_training.py
 ├── clustering_evaluation.py
@@ -125,6 +125,7 @@ soil-analysis-pipeline/
 ├── visualization.py
 ├── spatial_maps.py
 ├── spatial_mapping.py
+├── similarity_index.py
 ├── geographic_processing.py
 ├── horizon_processing.py
 ├── restriction_processing.py

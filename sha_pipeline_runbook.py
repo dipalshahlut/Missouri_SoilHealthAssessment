@@ -35,11 +35,11 @@ import matplotlib.ticker as mticker
 from Visualization import make_all_plots
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/you/Absolute/Path/to/data"
-OUTPUT_DIR ="/Users/you/Absolute/Path/to/data/aggResult"
+BASE_DIR = "/Users/dscqv/Desktop/SHA_copy/data"#"/Users/you/Absolute/Path/to/data"
+OUTPUT_DIR ="/Users/dscqv/Desktop/SHA_copy/data/aggResult"#"/Users/you/Absolute/Path/to/data/aggResult"
 
 # Steps to run (1..12); default: all
-# 1 main.py
+# 1 aggregation.py
 # 2 data_preparation.py
 # 3 vae_training.py
 # 4. clustering_evaluation.py
@@ -83,11 +83,11 @@ def fail(msg: str, e: Exception):
         sys.exit(1)
 
 # ─────────────────────────── steps ────────────────────────────────
-def step1_main():
-    banner("STEP 1 — main.py (engineering & integration)")
-    # Prefer imported main function that accepts argv-style list
+def step1_aggregation():
+    banner("STEP 1 — aggregation.py (engineering & integration)")
+    # Prefer imported aggregation function that accepts argv-style list
     try:
-        from main import main as run_main
+        from aggregation import main as run_main
         run_main(["--base-dir", BASE_DIR,
             "--output-dir", OUTPUT_DIR,
             "--target-crs", TARGET_CRS,
@@ -95,7 +95,7 @@ def step1_main():
         ])
         return run_main
     except Exception as e:
-        fail("main.py failed", e)
+        fail("aggregation.py failed", e)
 
 def step2_data_prep():
     banner("STEP 2 — data_preparation.py (Stage 1: prep/scaling)")
@@ -289,7 +289,7 @@ def run():
     ensure_output_dir(OUTPUT_DIR)
 
     step_funcs = {
-        1: step1_main,
+        1: step1_aggregation,
         2: step2_data_prep,
         3: step3_vae,
         4: step4_cluster_eval,

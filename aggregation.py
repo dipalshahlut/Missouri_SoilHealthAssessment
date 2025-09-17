@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-main.py — repo-aligned pipeline with a small CLI wrapper.
+aggregation.py — repo-aligned pipeline with a small CLI wrapper.
 
-Replicates the uploaded main.py behavior:
+Replicates the uploaded aggregation.py behavior:
   1) Load MU polygons, reproject to EPSG:5070, compute area, MUKEY→mukey
   2) Load mapunit/component/muagg, right-join on mukey, filter to spatial MUKEYs
   3) Component summaries and flags
@@ -12,12 +12,12 @@ Replicates the uploaded main.py behavior:
   7) Write shapefile+CSV of polygons and the final analysis CSV
 
 Usage:
-python main.py \
+python aggregation.py \
   --base-dir /path/to/data \
   --output-dir /path/to/data/aggResult \
   --target-crs EPSG:5070 \
   --analysis-depth 30
-  
+
 __author__ = "Dipal Shah"
 __email__  = "dipalshah@missouri.edu"
 __license__ = "MIT"
