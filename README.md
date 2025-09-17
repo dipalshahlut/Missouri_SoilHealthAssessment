@@ -55,7 +55,7 @@ pip install -r requirements.txt
 # Verify GDAL installation
 python -c "import gdal; print('GDAL version:', gdal.__version__)"
 
-
+```markdown
 ## Data Requirements
 # Download Missouri state gSSURGO data from:
 https://nrcs.app.box.com/v/soils/file/1680543039768 
