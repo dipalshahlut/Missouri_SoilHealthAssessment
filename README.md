@@ -55,7 +55,7 @@ pip install -r requirements.txt
 # Verify GDAL installation
 python -c "import gdal; print('GDAL version:', gdal.__version__)"
 
-```markdown
+```
 ## Data Requirements
 # Download Missouri state gSSURGO data from:
 https://nrcs.app.box.com/v/soils/file/1680543039768 
@@ -109,7 +109,7 @@ python sha_pipeline_runbook.py
 
 ## Project Structure
 
-```text
+```
 soil-analysis-pipeline/
 ├── README.md
 ├── requirements.txt
@@ -146,7 +146,7 @@ soil-analysis-pipeline/
 │                                                                                                   │
 ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──  
 
-```markdown
+```
 ## Acknowledgments
 This project builds upon:
 - SSURGO database from USDA-NRCS
