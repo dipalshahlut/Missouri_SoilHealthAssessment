@@ -32,6 +32,10 @@ python similarity_index.py \
   --output-dir /Users/me/SHA_copy/data/aggResult/compare_out \
   --method-a KMeans --k-a 10 \
   --method-b GMM --k-b 12
+  
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from pathlib import Path

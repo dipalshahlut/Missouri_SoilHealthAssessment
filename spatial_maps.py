@@ -29,6 +29,10 @@ python spatial_maps.py \
   --method Agglomerative \
   --k 12 \
   --spatial-path /path/to/data/mupoly.shp
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 import argparse

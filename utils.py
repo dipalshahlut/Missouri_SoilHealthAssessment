@@ -23,6 +23,10 @@ Aggregation helpers:
 Misc helpers:
     - concat_names(): join unique items into a readable, comma-separated string
     - reskind_comppct(): % of component composition per MU for a restriction kind
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 

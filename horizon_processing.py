@@ -23,6 +23,10 @@ Notes
 -----
 - This module assumes your upstream filters (e.g., to Missouri) are already applied via `comp_df`.
 - Column names follow SSURGO conventions: cokey, chkey, hzdept_r, hzdepb_r, etc.
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 import logging

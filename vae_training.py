@@ -18,6 +18,10 @@ Usage:
     --output-dir /path/to/data/aggResult \
     --latent-dim 2 --hidden-dim1 64 --hidden-dim2 32 \
     --epochs 50 --batch-size 256 --lr 1e-3
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 import argparse

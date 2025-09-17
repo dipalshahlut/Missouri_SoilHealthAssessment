@@ -22,6 +22,10 @@ Usage:
     --output-dir /path/to/data/aggResult \
     --analysis-depth 30 \
     --exclude-mukeys 2498901 2498902 2500799 2500800 2571513 2571527
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 import argparse

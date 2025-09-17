@@ -17,6 +17,10 @@ python main.py \
   --output-dir /path/to/data/aggResult \
   --target-crs EPSG:5070 \
   --analysis-depth 30
+  
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations

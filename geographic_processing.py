@@ -25,6 +25,10 @@ Notes
 - Default equal-area CRS is EPSG:5070 (USA Contiguous Albers Equal Area).
 - Repo pattern: pre-area functions keep MU key as 'MUKEY'; after area calc it is renamed to 'mukey'.
 - Shapefile has field limits; we include a retry path that truncates columns to <=10 chars and resolves duplicates.
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 import os

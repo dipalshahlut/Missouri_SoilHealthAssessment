@@ -23,11 +23,15 @@ Outputs (written to <OUTPUT_DIR>/figures/):
   area_by_cluster_<METHOD>_k<K>.png
   per_feature_boxplots_<METHOD>_k<K>/box_<feat>_...png  (if scaled data present)
 
-# Example CLI:
-# python visualization.py \
-#   -o /path/to/data/aggResult \
-#   -m KMeans -k 12 \
-#   --scaled-path /path/to/data/aggResult/data_scaled.npy
+# Example CLI Usage:
+python visualization.py \
+    -o /path/to/data/aggResult \
+    -m KMeans -k 12 \
+    --scaled-path /path/to/data/aggResult/data_scaled.npy
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations
@@ -422,7 +426,9 @@ def plot_per_feature_boxplots(
             y=feat,
             order=order,
             showfliers=showfliers,
+            hue = labels_col,
             palette=palette,
+            legend = False,
             ax=ax,
         )
 

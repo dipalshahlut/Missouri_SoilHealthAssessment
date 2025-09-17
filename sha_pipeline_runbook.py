@@ -5,11 +5,15 @@
 SSURGO preprocessing → aggregation → VAE → Clustering → Visualization → Spatial Mapping
 RUNBOOK & ORCHESTRATOR
 
-👉 Click Run (or `python pipeline_runbook.py`) to execute the pipeline.
-Default behavior: run ALL steps (1–10) with your absolute paths.
+Click Run (or `python pipeline_runbook.py`) to execute the pipeline.
+Default behavior: run ALL steps (1–12) with your absolute paths.
 
 Edit the CONFIG section below to change paths, steps, or defaults.
 Supported methods (case-insensitive): "KMeans", "Agglomerative", "Birch", "GMM"
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ import time
 import traceback
 from typing import Iterable
 from pathlib import Path
-
+import json, numpy as np, pandas as pd, os
 from vae_training import train_and_save
 from clustering_selection import score_many_clusterings
 from clustering_selection import main as run_select
@@ -31,29 +35,30 @@ import matplotlib.ticker as mticker
 from Visualization import make_all_plots
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/dscqv/Desktop/SHA_copy/data"##/Users/you/Absolute/Path/to/data"
-OUTPUT_DIR ="/Users/dscqv/Desktop/SHA_copy/data/aggResult" #"/Users/you/Absolute/Path/to/data/aggResult"
+BASE_DIR = "/Users/you/Absolute/Path/to/data"
+OUTPUT_DIR ="/Users/you/Absolute/Path/to/data/aggResult"
 
-# Steps to run (1..11); default: all
+# Steps to run (1..12); default: all
 # 1 main.py
 # 2 data_preparation.py
 # 3 vae_training.py
-# 4. metrics_plots.py
+# 4. clustering_evaluation.py
 # 5 clustering_selection.py (optional scoring many ks/methods)
 # 6 clustering_algorithms.py (one method, one k)
-# 7 latent_plots.py
-# 8 visualization.py
-# 9 spatial_maps.py (best labels mapping; optional)
-# 10 spatial_mapping.py (one method,k mapping)
-# 11. similarity_inxdex.py (compare two clustering method or k outputs)
-STEPS_TO_RUN: Iterable[int] = range(1, 12)
+# 7. metrics_plots.py
+# 8 latent_plots.py
+# 9 visualization.py
+# 10 spatial_maps.py (best labels mapping; optional)
+# 11 spatial_mapping.py (one method,k mapping)
+# 12. similarity_inxdex.py (compare two clustering method or k outputs)
+STEPS_TO_RUN: Iterable[int] = range(1, 13)
 
 # Defaults you can tweak
 ANALYSIS_DEPTH = 30
 VAE_LATENT_DIM = 2
 VAE_EPOCHS = 100
 CLUSTER_METHOD = "KMeans" #  "KMeans", "Agglomerative", "Birch", "GMM"
-CLUSTER_K = 12
+CLUSTER_K = 10
 CONTINUE_ON_ERROR = False  # set True to keep going after errors
 EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
 TARGET_CRS = "EPSG:5070"
@@ -117,8 +122,35 @@ def step3_vae():
     except Exception as e:
         fail("vae_training.py failed", e)
 
-def step4_cluster_select():
-    banner("STEP 4 — clustering_selection.py (optional: score many ks/methods)")
+def step4_cluster_eval():
+    banner("STEP 4 — clustering_evaluation.py (evaluate methods & best k)")
+    try:
+        from clustering_evaluation import evaluate_multiple_algorithms, get_best_clustering_results
+        z = np.load(os.path.join(OUTPUT_DIR, "z_mean.npy"))
+        base_df = (pd.read_parquet(os.path.join(OUTPUT_DIR, "prepared_df.parquet"))
+                   if os.path.exists(os.path.join(OUTPUT_DIR, "prepared_df.parquet"))
+                   else pd.read_csv(os.path.join(OUTPUT_DIR, "main_df.csv")))
+        methods = ["KMeans", "Agglomerative", "Birch", "GMM"]
+
+        scores, best_k_for, best_score_for = evaluate_multiple_algorithms(
+            z, methods=methods, k_range=range(2, 21), random_state=42)
+        # Save artifacts
+        recs = [{"method": m, "metric": met, "k": k, "value": v}
+                for m, mm in scores.items()
+                for met, kv in mm.items()
+                for k, v in kv.items()]
+        pd.DataFrame(recs).to_csv(os.path.join(OUTPUT_DIR, "clustering_scores.csv"), index=False)
+        json.dump(best_k_for, open(os.path.join(OUTPUT_DIR, "best_k_for.json"), "w"), indent=2)
+        json.dump(best_score_for, open(os.path.join(OUTPUT_DIR, "best_score_for.json"), "w"), indent=2)
+
+        df_with = get_best_clustering_results(base_df, z, best_k_for, methods, random_state=42)
+        df_with.to_parquet(os.path.join(OUTPUT_DIR, "main_with_best_labels_allAlgo.parquet"), index=False)
+        print("✅ clustering_evaluation done.")
+    except Exception as e:
+        fail("clustering_evaluation.py failed", e)
+
+def step5_cluster_select():
+    banner("STEP 5 — clustering_selection.py (optional: score many ks/methods)")
     try:
         try:
             from clustering_selection import score_many_clusterings
@@ -138,8 +170,8 @@ def step4_cluster_select():
     except Exception as e:
         fail("clustering_selection.py failed", e)
 
-def step5_cluster_single():
-    banner("STEP 5 — clustering_algorithms.py (single method & k)")
+def step6_cluster_single():
+    banner("STEP 6 — clustering_algorithms.py (single method & k)")
     try:
         from clustering_algorithms import run_single_clustering_io
         labels, sil, col = run_single_clustering_io(
@@ -152,8 +184,8 @@ def step5_cluster_single():
     except Exception as e:
         fail("clustering_algorithms.py failed", e)
 
-def step6_metrics_plots():
-    banner("STEP 6 — metric_plots.py (plot evaluation metrics)")
+def step7_metrics_plots():
+    banner("STEP 7 — metric_plots.py (plot evaluation metrics)")
     import metric_plots
     return metric_plots.run(base_dir=BASE_DIR,
         output_dir=OUTPUT_DIR,
@@ -162,8 +194,8 @@ def step6_metrics_plots():
         k_min=2, k_max=20, gap_B=5, verbosity=2
     )
 
-def step7_latent_plots():
-    banner("STEP 7 — latent_plots.py (2D latent plots)")
+def step8_latent_plots():
+    banner("STEP 8 — latent_plots.py (2D latent plots)")
     try:
         try:
             from latent_plots import plot_latent
@@ -184,16 +216,16 @@ def step7_latent_plots():
     except Exception as e:
         fail("latent_plots.py failed", e)
 
-def step8_visualization():
-    banner("STEP 8 — visualization.py (scatter, boxplots, area-by-cluster)")
+def step9_visualization():
+    banner("STEP 9 — visualization.py (scatter, boxplots, area-by-cluster)")
     try:
         
         return make_all_plots(output_dir=OUTPUT_DIR, method=CLUSTER_METHOD, k=CLUSTER_K, exclude_mukeys=EXCLUDE_MUKEYS)
     except Exception as e:
         fail("visualization.py failed", e)
 
-def step9_spatial_maps():
-    banner("STEP 9 — spatial_maps.py (best labels mapping)")
+def step10_spatial_maps():
+    banner("STEP 10 — spatial_maps.py (best labels mapping)")
     try:
         try:
             from spatial_maps import run as spatial_run
@@ -205,8 +237,8 @@ def step9_spatial_maps():
     except Exception as e:
         fail("spatial_maps.py failed", e)
 
-def step10_spatial_mapping():
-    banner("STEP 10 — spatial_mapping.py (one method, k mapping)")
+def step11_spatial_mapping():
+    banner("STEP 11 — spatial_mapping.py (one method, k mapping)")
     try:
         import spatial_mapping as sm
         # If your helper supports (base_dir, output_dir, method, k)
@@ -224,8 +256,8 @@ def step10_spatial_mapping():
         fail("spatial_mapping.py failed", e)
 
 
-def step11_similarity_index():
-    banner("STEP 11 — similarity_index.py (compare two clustering method or k outputs)")
+def step12_similarity_index():
+    banner("STEP 12 — similarity_index.py (compare two clustering method or k outputs)")
     try:
         from similarity_index import run_similarity_index
         # Labels live in the spatial CSV folder:
@@ -260,14 +292,15 @@ def run():
         1: step1_main,
         2: step2_data_prep,
         3: step3_vae,
-        4: step4_cluster_select,
-        5: step5_cluster_single,
-        6: step6_metrics_plots,
-        7: step7_latent_plots,
-        8: step8_visualization,
-        9: step9_spatial_maps,
-        10: step10_spatial_mapping,
-        11: step11_similarity_index,
+        4: step4_cluster_eval,
+        5: step5_cluster_select,
+        6: step6_cluster_single,
+        7: step7_metrics_plots,
+        8: step8_latent_plots,
+        9: step9_visualization,
+        10: step10_spatial_maps,
+        11: step11_spatial_mapping,
+        12: step12_similarity_index,
     }
 
     for s in STEPS_TO_RUN:

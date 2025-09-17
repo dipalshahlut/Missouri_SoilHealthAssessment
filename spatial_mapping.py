@@ -30,6 +30,9 @@ python spatial_mapping.py \
   --k 10 \
   --vector-path /path/to/data/mupoly.shp \
   
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT" 
 """
 
 

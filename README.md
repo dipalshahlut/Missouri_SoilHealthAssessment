@@ -141,8 +141,8 @@ soil-analysis-pipeline/
 
 ## Clustering workflow
 ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── │                                                                                                   │
-│   clustering_selection.py  --->  clustering_evaluation.py  --->  clustering_algorithms.py         │
-│   (CLI + Input/Output)           (metrics, model selection)    (model factory + fit/predict)      │
+│   clustering_evaluation.py  --->  clustering_selection.py  --->  clustering_algorithms.py         │
+│   (metrics, model evaluation)        (CLI + Input/Output)      (model factory + fit/predict)      │
 │                                                                                                   │
 ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──  
 

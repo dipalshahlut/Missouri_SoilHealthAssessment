@@ -20,13 +20,9 @@ CLI Usage:
     --methods KMeans Agglomerative Birch GMM \
     --k-min 2 --k-max 20
 
-Programmatic Usage:
-  from clustering_selection import score_many_clusterings
-  tidy_scores, best_k_for, best_score_for, df_with_clusters = score_many_clusterings(
-      output_dir="/abs/path/to/aggResult",
-      methods=["KMeans","Agglomerative","Birch","GMM"],
-      k_min=2, k_max=20
-  )
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations

@@ -20,6 +20,10 @@ python clustering_algorithms.py \
   --output-dir /path/to/data/aggResult \
   --method KMeans \
   --k 10
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 from __future__ import annotations
 

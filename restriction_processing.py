@@ -23,6 +23,10 @@ Notes
   it is copied to `comppct` with numeric coercion and [0,100] clipping.
 - Keeps key naming consistent with horizon processing and MU-level utilities.
 - Expects that the upstream component table (`comp_data_mo`) is already filtered to the study area (e.g., Missouri).
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations

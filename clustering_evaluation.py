@@ -10,13 +10,29 @@ Public API:
 
 Supported methods (case-insensitive):
   - "KMeans", "Agglomerative", "Birch", "GMM"
+
+Usage:
+1. Evaluate all methods (default k=2–20):
+python clustering_evaluation.py \
+  --z-path /path/to/data/aggResult/z_mean.npy \
+  --methods KMeans Agglomerative Birch GMM \
+   --k-min 10 \
+  --k-max 20 \
+  --output /path/to/data/aggResult/eval_scores.csv \
+  --json-out /path/to/data/aggResult/eval_scores.json
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations
 
 import logging
 from typing import Dict, Iterable, Tuple
-
+import argparse
+import json
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.cluster import KMeans, AgglomerativeClustering, Birch
@@ -194,6 +210,56 @@ __all__ = [
     "evaluate_multiple_algorithms",
     "get_best_clustering_results",
     "fit_predict_labels",
-    # keeping the private symbol available if some modules still import it
-    "_fit_predict_labels",
 ]
+
+def _build_argparser():
+    p = argparse.ArgumentParser(description="Evaluate clustering algorithms on latent space (z_mean).")
+    p.add_argument("--z-path", required=True, help="Path to z_mean.npy")
+    p.add_argument("--methods", nargs="+", required=True,
+                   choices=["KMeans", "Agglomerative", "Birch", "GMM"],
+                   help="Clustering methods to evaluate")
+    p.add_argument("--k-min", type=int, default=2, help="Minimum k (default: 2)")
+    p.add_argument("--k-max", type=int, default=15, help="Maximum k (default: 15)")
+    p.add_argument("--random-state", type=int, default=42, help="Random seed (default: 42)")
+    p.add_argument("--output", default=None, help="Optional CSV to save tidy scores")
+    p.add_argument("--json-out", default=None, help="Optional JSON file to save best_k_for and best_score_for")
+    return p
+
+def main(argv=None):
+    args = _build_argparser().parse_args(argv)
+    X = np.load(args.z_path)
+
+    # Evaluate
+    scores, best_k_for, best_score_for = evaluate_multiple_algorithms(
+        X, methods=args.methods, k_range=range(args.k_min, args.k_max + 1),
+        random_state=args.random_state
+    )
+
+    # Convert scores to tidy DataFrame
+    records = []
+    for m, metr_dict in scores.items():
+        for metric, kv in metr_dict.items():
+            for k, v in kv.items():
+                records.append({"method": m, "metric": metric, "k": k, "value": v})
+    tidy = pd.DataFrame.from_records(records)
+
+    print("\n=== Best k per method ===")
+    for m, k in best_k_for.items():
+        print(f"{m}: k={k}, silhouette={best_score_for[m]:.3f}")
+
+    # Save CSV if requested
+    if args.output:
+        Path(args.output).parent.mkdir(parents=True, exist_ok=True)
+        tidy.to_csv(args.output, index=False)
+        print(f"\nScores saved to {args.output}")
+
+    # Save JSON if requested
+    if args.json_out:
+        with open(args.json_out, "w") as f:
+            json.dump({"best_k_for": best_k_for, "best_score_for": best_score_for}, f, indent=2)
+        print(f"Best results saved to {args.json_out}")
+
+    return 0
+
+if __name__ == "__main__":
+    raise SystemExit(main())

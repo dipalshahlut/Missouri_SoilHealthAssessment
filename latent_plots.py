@@ -18,6 +18,10 @@ CLI:
   python latent_plots.py \
     --output-dir /path/to/aggResult \
     --method KMeans --k 10 --title "KMeans (k=10) clustering plot"
+
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations

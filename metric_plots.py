@@ -15,10 +15,14 @@ Outputs:
   - <output_dir>/figures/gap_curves.png
   - <output_dir>/metrics_<Method>.csv   (per-method table with k, wss, ch, sil, gap)
 
-CLI:
+CLI Usage:
   python metrics_plots.py -o /path/to/aggResult --k-min 2 --k-max 20 --gap-B 10
   # or force a particular file:
   python metrics_plots.py -o /path/to/aggResult --data-path /path/to/data_scaled.npy
+  
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 from __future__ import annotations
 
