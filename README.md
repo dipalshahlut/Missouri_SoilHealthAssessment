@@ -113,6 +113,7 @@ python sha_pipeline_runbook.py
 soil-analysis-pipeline/
 ├── README.md
 ├── requirements.txt
+├── sha_pipeline_runbook.py
 ├── main.py
 ├── data_preparation.py
 ├── vae_training.py
@@ -128,7 +129,6 @@ soil-analysis-pipeline/
 ├── horizon_processing.py
 ├── restriction_processing.py
 ├── utils.py
-├── pipeline_runbook.py
 ├── data/
 │   ├── mupoly.shp
 │   ├── mapunit.csv
