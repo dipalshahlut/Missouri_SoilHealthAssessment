@@ -1,69 +1,78 @@
 # SSURGO Soil Health Analysis System
 
-A comprehensive Python toolkit for processing and analyzing SSURGO (Soil Survey Geographic Database) data using advanced machine learning techniques including Variational Autoencoders (VAE) and clustering algorithms.
+A comprehensive Python toolkit for processing and analyzing SSURGO (Soil Survey Geographic Database) data using advanced machine learning techniques, including Variational Autoencoders (VAE) and clustering algorithms.
+
+---
 
 ## Overview
 
 This system processes SSURGO soil data and provides an end-to-end pipeline to:
-- Prepare SSURGO spatial + tabular soil data
-- Extract and aggregate soil properties by depth layers (10cm, 30cm, 100cm)
-- Apply advanced clustering techniques using VAE for dimensionality reduction
-- Generate comprehensive soil classification and analysis reports
-- Create interactive visualizations of soil property distributions
-- Perform spatial analysis with geographic information systems (GIS) integration
+
+- Prepare SSURGO spatial and tabular data  
+- Extract and aggregate soil properties by depth layers (10 cm, 30 cm, 100 cm)  
+- Apply advanced clustering techniques using VAE for dimensionality reduction  
+- Generate soil classification and analysis reports  
+- Create interactive visualizations of soil property distributions  
+- Perform spatial analysis with GIS integration  
+
+---
 
 ## Features
+
 ### Core Functionality
-- **Multi-depth Analysis**: Process soil horizons at 10cm, 30cm, and 100cm depths
-- **Advanced ML Pipeline**: VAE + K-Means, Agglomerative, Birch, Fuzzy C-Means, and Gaussian Mixture clustering
-- **Comprehensive Evaluation**: Silhouette Score, and QC metrics such as Calinski-Harabasz Index, Gap Statistic, elbow method
-- **Generate visualizations of latent spaces, soil property distributions, and cluster areas
-- **Spatial Integration**: Integrate results back into MU polygons for spatial mapping, GIS processing with coordinate transformations and area calculations
-- **Quality Control**: Automated data validation and component coverage analysis
+- **Multi-depth Analysis**: Process soil horizons at 10 cm, 30 cm, and 100 cm depths  
+- **Advanced ML Pipeline**: VAE + K-Means, Agglomerative, Birch, Fuzzy C-Means, and Gaussian Mixture clustering  
+- **Comprehensive Evaluation**: Silhouette score, and additional QC metrics Calinski-Harabasz Index, Gap Statistic, Elbow method  
+- **Rich Visualizations**: Latent space plots, soil property distributions, cluster areas  
+- **Spatial Integration**: Map clusters back into MU polygons with GIS processing (coordinate transformations, area calculations)  
+- **Quality Control**: Automated data validation and component coverage analysis  
 
 ### Data Processing Modules
-- **Geographic Processing**: Spatial data handling and coordinate system management
-- **Horizon Processing**: Soil layer aggregation and organic carbon calculations
-- **Restriction Processing**: Soil limitation and constraint analysis
-- **Component Analysis**: Major component identification and percentage calculations
-- **Utils**: Weighted averaging, horizon→component→MU transformations
+- **Geographic Processing**: Spatial data handling and CRS management  
+- **Horizon Processing**: Soil layer aggregation and organic carbon calculations  
+- **Restriction Processing**: Soil limitations and constraint analysis  
+- **Component Analysis**: Major component identification and coverage calculation  
+- **Utilities**: Weighted averaging, horizon → component → MU transformations  
+
+---
 
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+
-- GDAL/OGR libraries for spatial data processing
-- Required Python packages (see requirements.txt)
+- Python 3.8+  
+- GDAL/OGR libraries for spatial data processing  
+- Required Python packages (see `requirements.txt`)  
 
 ### Installation
-\`\`\`bash
+```bash
 # Clone or download the project
 git clone <repository-url>
-cd ssurgo-soil-analysis
+cd soil-analysis-pipeline
 
-# install dependencies
+# Install dependencies
 pip install -r requirements.txt
 
 # Verify GDAL installation
 python -c "import gdal; print('GDAL version:', gdal.__version__)"
 
+
 ## Data Requirements
-## Input Data
-## Download Missouri state gSSURGO data from the link : https://nrcs.app.box.com/v/soils/file/1680543039768 
+# Download Missouri state gSSURGO data from:
+https://nrcs.app.box.com/v/soils/file/1680543039768 
 Note: process the downloaded gSSURGO data in GIS software and convert them into the recommended file format.
-Place the following in your data/ directory:
+Place the following in your /path/to/data/ directory:
 - **Spatial Data**: mupolygon.shp (spatial polygons)
 - **Tabular Data**: mapunit.csv, component.csv, muagg.csv, corestrictions.csv, chorizon.csv, chfrags.csv
 - **Geographic Boundaries**: County or study area boundaries
 
-### Data Format
+## Data format expectations
 All input data should follow SSURGO database schema standards. The system expects:
 - Consistent MUKEY identifiers across all datasets
 - Proper coordinate reference systems for spatial data
 - Complete attribute tables with required fields
 
 ## Pipeline Analysis Workflow
-1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files listed below (2-13)
+1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
 2. **main.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
 3. **data_preparation.py** → scales data, outputs data_scaled.npy
 4. **vae_training.py** → trains VAE, outputs z_mean.npy
@@ -76,8 +85,8 @@ All input data should follow SSURGO database schema standards. The system expect
 11. **spatial_maps.py**  → map best labels (multi-method)
 12. **spatial_mapping.py** → map one method+k to polygons
 13. **similarity_index.py** → compare two clustering algorithms outputs 
-## Outputs
 
+## Outputs
 1. **Datasets**
   - main_df.csv, prepared_df.parquet
   - data_scaled.npy, z_mean.npy
@@ -94,6 +103,7 @@ All input data should follow SSURGO database schema standards. The system expect
   - MO_30cm_clusters_{method}_k{k}.shp
 
 ## Basic Usage
+
 Full Pipeline (click-to-run)
 python sha_pipeline_runbook.py
 
@@ -126,15 +136,24 @@ soil-analysis-pipeline/
 │   ├── muagg.csv
 │   ├── corestrictions.csv
 │   ├── chorizon.csv
-│   ├── cfrag.csv
+│   ├── cfrag.csv 
 │   └── aggResult/   # outputs
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──                                                                                             
+
+## Clustering workflow
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── │                                                                                                   │
 │   clustering_selection.py  --->  clustering_evaluation.py  --->  clustering_algorithms.py         │
 │   (CLI + Input/Output)           (metrics, model selection)    (model factory + fit/predict)      │
 │                                                                                                   │
-── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──                                                                                    
-## Contributing
-We welcome improvements! Please:
+── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──  
+
+```markdown
+## Acknowledgments
+This project builds upon:
+- SSURGO database from USDA-NRCS
+- Torch for VAE implementation
+- Article: 
+  ─ Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.
+  ─ A regional soil classification framework to improve soil health diagnosis and management.
 
 ## License
 MIT License
@@ -165,11 +184,4 @@ If you use this software in your research, please cite:
 - Create an issue in the project repository
 - Contact developer: dipalshah@missouri.edu
 
-## Acknowledgments
-This project builds upon:
-- SSURGO database from USDA-NRCS
-- Article:
-```text
-├── Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.
-├── A regional soil classification framework to improve soil health diagnosis and management.
 
