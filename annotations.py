@@ -25,6 +25,9 @@ disconnect = enable_point_annotations(
     fmt=lambda p: f"mukey: {p['mukey']}\ncluster: {p['cluster']}\n({p['x']:.3f}, {p['y']:.3f})",
 )
 # call disconnect() later to remove the event handlers
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations

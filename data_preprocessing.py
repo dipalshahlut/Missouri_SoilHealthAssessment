@@ -17,6 +17,9 @@ Notes:
   • mean imputation (on area_ac, MnRs_dep, and depth-specific features)
   • RobustScaler on ['MnRs_dep'] + cluster_cols_base (excluding area_ac)
   • optional removal of known MUKEYs used by the pipeline
+__author__ = "Dipal Shah"
+__email__  = "dipalshah@missouri.edu"
+__license__ = "MIT"
 """
 
 from __future__ import annotations
