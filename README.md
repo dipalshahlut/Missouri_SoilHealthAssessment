@@ -59,7 +59,7 @@ python -c "import gdal; print('GDAL version:', gdal.__version__)"
 ## Data Requirements
 # Download Missouri state gSSURGO data from:
 https://nrcs.app.box.com/v/soils/file/1680543039768 
-Note: process the downloaded gSSURGO data in GIS software and convert them into the recommended file format.
+**Note:** process the downloaded gSSURGO data in GIS software and convert them into the recommended file format.
 Place the following in your /path/to/data/ directory:
 - **Spatial Data**: mupolygon.shp (spatial polygons)
 - **Tabular Data**: mapunit.csv, component.csv, muagg.csv, corestrictions.csv, chorizon.csv, chfrags.csv
@@ -72,7 +72,7 @@ All input data should follow SSURGO database schema standards. The system expect
 - Complete attribute tables with required fields
 
 ## Pipeline Analysis Workflow
-1. **Sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
+1. **sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
 2. **aggregation.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
 3. **data_preparation.py** → scales data, outputs data_scaled.npy
 4. **vae_training.py** → trains VAE, outputs z_mean.npy
@@ -153,9 +153,8 @@ soil-analysis-pipeline/
 This project builds upon:
 - SSURGO database from USDA-NRCS
 - Torch for VAE implementation
-- Article: 
-  ─ Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.
-  ─ A regional soil classification framework to improve soil health diagnosis and management.
+- Article:   a) Algorithms for Quantitative Pedology: A Toolkit for Soil Scientists.  
+             b)A regional soil classification framework to improve soil health diagnosis and management.
 
 ## License
 MIT License
