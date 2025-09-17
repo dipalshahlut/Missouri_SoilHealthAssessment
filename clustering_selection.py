@@ -10,7 +10,7 @@ Inputs (from OUTPUT_DIR):
 Outputs (to OUTPUT_DIR):
   - clustering_scores.csv                : tidy scores [method,k,metric,value]
   - best_k_for.json                      : {"KMeans": 10, "Agglomerative": 9, ...}
-  - best_score_for.json                  : {"KMeans": 0.41, "Agglomerative": 0.38, ...}
+  - best_score_for.json                  : {"KMeans": , "Agglomerative": , ...}
   - main_with_best_labels_allAlgo.parquet: df + one best-label column per method
   - figures/silhouette_comparison.png    : line plot of silhouette vs k per method
 
@@ -51,34 +51,53 @@ METHODS_ALLOWED = {"KMeans", "Agglomerative", "Birch", "GMM"}
 # -------------------------------
 # Minimal plotting
 # -------------------------------
-def plot_silhouette_comparison(scores: dict, k_range: range, methods: list[str], output_dir: Path) -> None:
+# -------------------------------
+# Minimal plotting
+# -------------------------------
+def _plot_metric_comparison(
+    scores: dict,
+    k_range: range,
+    methods: list[str],
+    output_dir: Path,
+    metric_key: str,           # "silhouette", "ch", or "db"
+    ylabel: str,
+    filename: str
+) -> None:
     """
-    Save a single comparison figure with silhouette vs k per method.
+    Save a comparison figure with <metric_key> vs k per method.
+    Expects: scores[method][k] -> {"silhouette": ..., "ch": ..., "db": ...}
     """
     output_dir = Path(output_dir)
     fig_dir = output_dir / "figures"
     fig_dir.mkdir(parents=True, exist_ok=True)
-    out_path = fig_dir / "silhouette_comparison.png"
+    out_path = fig_dir / filename
+
+    import numpy as np
+    import matplotlib.pyplot as plt
 
     plt.figure()
     for m in methods:
         y = []
         for k in k_range:
             try:
-                y.append(scores[m][k]["silhouette"])
+                y.append(scores[m][k][metric_key])
             except Exception:
                 y.append(np.nan)
         plt.plot(list(k_range), y, marker="o", label=m)
 
     plt.xlabel("k (number of clusters/components)")
-    plt.ylabel("Silhouette score (higher is better)")
-    plt.title("Silhouette vs k across methods")
+    plt.ylabel(ylabel)
+    title_name = {
+        "silhouette": "Silhouette",
+        "ch": "Calinski–Harabasz",
+        "db": "Davies–Bouldin"
+    }.get(metric_key, metric_key)
+    plt.title(f"{title_name} vs k across methods")
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.savefig(out_path, dpi=200)
     plt.close()
-
 
 # -------------------------------
 # Helper: run a method for a given k
@@ -86,7 +105,7 @@ def plot_silhouette_comparison(scores: dict, k_range: range, methods: list[str],
 def _fit_predict(method: str, Z: np.ndarray, k: int) -> np.ndarray:
     m = method.lower()
     if m == "kmeans":
-        model = KMeans(n_clusters=k, random_state=42, n_init=10)#, n_init="auto", random_state=RANDOM_STATE)
+        model = KMeans(n_clusters=k, random_state=42, n_init=20)#, n_init="auto", random_state=RANDOM_STATE)
         return model.fit_predict(Z)
     elif m == "agglomerative":
         model = AgglomerativeClustering(n_clusters=k)
@@ -95,7 +114,7 @@ def _fit_predict(method: str, Z: np.ndarray, k: int) -> np.ndarray:
         model = Birch(n_clusters=k)
         return model.fit_predict(Z)
     elif m == "gmm":
-        model = GaussianMixture(n_components=k, random_state=42) #covariance_type="full",
+        model = GaussianMixture(n_components=k, random_state=42)
         model.fit(Z)
         return model.predict(Z)
     else:
@@ -238,10 +257,28 @@ def _write_artifacts(
             scores[m] = {}
         for _, row in tidy_scores.iterrows():
             m = row["method"]; k = int(row["k"]); metric = row["metric"]; val = float(row["value"])
-            scores.setdefault(m, {}).setdefault(k, {})[metric if metric != "calinski_harabasz" else "ch"] = val
-        plot_silhouette_comparison(scores, k_range, methods, output_dir)
+            key = {"silhouette": "silhouette",
+                   "calinski_harabasz": "ch",
+                   "davies_bouldin": "db"}[metric]
+            scores.setdefault(m, {}).setdefault(k, {})[key] = val
+
+        # Plot all three metrics as separate PNGs
+        _plot_metric_comparison(scores, k_range, methods, output_dir,
+                                metric_key="silhouette",
+                                ylabel="Silhouette (higher is better)",
+                                filename="silhouette_comparison.png")
+
+        _plot_metric_comparison(scores, k_range, methods, output_dir,
+                                metric_key="ch",
+                                ylabel="Calinski–Harabasz (higher is better)",
+                                filename="calinski_harabasz_comparison.png")
+
+        _plot_metric_comparison(scores, k_range, methods, output_dir,
+                                metric_key="db",
+                                ylabel="Davies–Bouldin (lower is better)",
+                                filename="davies_bouldin_comparison.png")
     except Exception as e:
-        logging.warning("Could not plot silhouette comparison: %s", e)
+        logging.warning("Could not plot comparison figures: %s", e)
 
     # metadata
     with open(output_dir / "best_k_for.json", "w") as f:

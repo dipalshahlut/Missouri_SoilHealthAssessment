@@ -32,11 +32,15 @@ import sys, os, random
 import torch
 import numpy as np
 import pandas as pd
+# -------------------
+# Reproducibility setup
+# -------------------
 SEED = 42
 np.random.seed(SEED)
 random.seed(SEED)
 torch.manual_seed(SEED)
-
+# torch.backends.cudnn.deterministic = True
+# torch.backends.cudnn.benchmark = False
 
 def load_stage1_artifacts(output_dir: str | Path):
     out = Path(output_dir)
@@ -52,15 +56,11 @@ def load_stage1_artifacts(output_dir: str | Path):
 # -----------------------------
 try:
     import torch
-    random.seed(SEED)
-    np.random.seed(SEED)
-    torch.manual_seed(SEED)
     from torch import nn
     from torch.utils.data import DataLoader, TensorDataset
 except Exception as e:
     torch = None
     _torch_import_error = e
-
 
 class VAE(nn.Module):
     """

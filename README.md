@@ -58,7 +58,7 @@ python -c "import gdal; print('GDAL version:', gdal.__version__)"
 ```
 ## Data Requirements
 # Download Missouri state gSSURGO data from:
-https://nrcs.app.box.com/v/soils/file/1680543039768 
+https://nrcs.app.box.com/v/soils/file/1680543039768     
 **Note:** process the downloaded gSSURGO data in GIS software and convert them into the recommended file format.
 Place the following in your /path/to/data/ directory:
 - **Spatial Data**: mupolygon.shp (spatial polygons)

@@ -19,7 +19,7 @@ CLI Usage:
   python metrics_plots.py -o /path/to/aggResult --k-min 2 --k-max 20 --gap-B 10
   # or force a particular file:
   python metrics_plots.py -o /path/to/aggResult --data-path /path/to/data_scaled.npy
-  
+
 __author__ = "Dipal Shah"
 __email__  = "dipalshah@missouri.edu"
 __license__ = "MIT"
@@ -164,7 +164,7 @@ def _gap_statistic(
 
 def _methods_map(random_state: int = 42) -> Dict[str, Callable[[np.ndarray, int], np.ndarray]]:
     return {
-        "KMeans":        lambda X, k: KMeans(n_clusters=k, random_state=random_state).fit_predict(X),
+        "KMeans":        lambda X, k: KMeans(n_clusters=k, random_state=random_state, n_init=20).fit_predict(X),
         "Agglomerative": lambda X, k: AgglomerativeClustering(n_clusters=k).fit_predict(X),
         "Birch":         lambda X, k: Birch(n_clusters=k).fit_predict(X),
         "GMM":           lambda X, k: GaussianMixture(n_components=k, random_state=random_state).fit_predict(X),

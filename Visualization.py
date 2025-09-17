@@ -557,7 +557,7 @@ def plot_centroid_heatmap(df, labels_col, X_scaled, out_path):
         vmin=vmin, vmax=vmax,        # symmetric scale
         linewidths=0.5,
         annot=True,
-        fmt=".2f",
+        fmt=".1f",
         cbar=True,
         cbar_kws={"label": "Z-score of feature mean"},
     )
@@ -675,12 +675,12 @@ def plot_feature_importance_heatmap(
         linewidths=0.5,
         cbar=True,
         cbar_kws={"label": "Mean |SHAP| (%)"},
-        annot=False,   # we'll place our own strings for exact control
+        annot=False,   # we'll place our own strings for exact control 
     )
     # Place our percent strings
     for (i, j), _ in np.ndenumerate(heat_pct.values):
         ax.text(j + 0.5, i + 0.5, annot_strings.iat[i, j],
-                ha="center", va="center", fontsize=9)
+                ha="center", va="center", fontsize=12, color= "white")
 
     # Axes & ticks
     ax.set_ylabel("Feature", fontsize=12, fontweight="bold")
