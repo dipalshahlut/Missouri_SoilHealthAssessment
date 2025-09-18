@@ -35,8 +35,8 @@ import matplotlib.ticker as mticker
 from Visualization import make_all_plots
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/dscqv/Desktop/SHA_copy/data"#"/Users/you/Absolute/Path/to/data"
-OUTPUT_DIR ="/Users/dscqv/Desktop/SHA_copy/data/aggResult"#"/Users/you/Absolute/Path/to/data/aggResult"
+BASE_DIR = "/Users/you/Absolute/Path/to/data"
+OUTPUT_DIR = "/Users/you/Absolute/Path/to/data/aggResult"
 
 # Steps to run (1..12); default: all
 # 1 aggregation.py
