@@ -23,7 +23,7 @@ This system processes SSURGO soil data and provides an end-to-end pipeline to:
 - **Multi-depth Analysis**: Process soil horizons at 10 cm, 30 cm, and 100 cm depths  
 - **Advanced ML Pipeline**: VAE + K-Means, Agglomerative, Birch, Fuzzy C-Means, and Gaussian Mixture clustering  
 - **Comprehensive Evaluation**: Silhouette score, and additional QC metrics Calinski-Harabasz Index, Gap Statistic, Elbow method  
-- **Rich Visualizations**: Latent space plots, soil property distributions, cluster areas  
+- **Visualizations**: Latent space plots, soil property distributions, cluster areas  
 - **Spatial Integration**: Map clusters back into MU polygons with GIS processing (coordinate transformations, area calculations)  
 - **Quality Control**: Automated data validation and component coverage analysis  
 
