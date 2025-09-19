@@ -51,23 +51,50 @@ OUTPUT_DIR = "/Users/you/Absolute/Path/to/data/aggResult"
 # 10 spatial_maps.py (best labels mapping; optional)
 # 11 spatial_mapping.py (one method,k mapping)
 # 12. similarity_inxdex.py (compare two clustering method or k outputs)
+# ===============================================================
+# CONFIGURATION VARIABLES
+# ===============================================================
+# STEPS_TO_RUN: Controls which stages of the pipeline will run. 
+#   Example: range(1, 13) runs all stages from 1 through 12.
+#   You can also pass a subset like [1, 2, 5] to run only specific steps.
 STEPS_TO_RUN: Iterable[int] = range(1, 13)
 
-# Defaults you can tweak
+# ANALYSIS_DEPTH: Soil analysis depth in centimeters.
+#   Allowed values: 10, 30, or 100. Determines which depth slice of SSURGO data to use.
 ANALYSIS_DEPTH = 30
+
+# VAE_LATENT_DIM: Number of dimensions in the latent space of the VAE model.
+#   A small value (e.g., 2) is good for visualization, larger values capture more complex structure.
 VAE_LATENT_DIM = 2
+# VAE_EPOCHS: Number of training epochs for the VAE.
+#   More epochs may improve representation learning but will increase runtime.
 VAE_EPOCHS = 100
+# CLUSTER_METHOD: Clustering algorithm to use after VAE training.
+#   Options: "KMeans", "Agglomerative", "Birch", "GMM".
+#   Each method has different assumptions and behavior.
 CLUSTER_METHOD = "KMeans" #  "KMeans", "Agglomerative", "Birch", "GMM"
+# CLUSTER_K: Number of clusters for the chosen clustering method.
+#   Determines how many groups the data will be partitioned into.
 CLUSTER_K = 12
+# CONTINUE_ON_ERROR: If False, the pipeline will stop at the first error.
+#   If True, it will attempt to continue running later steps even if one step fails.
+#   recommended to keep it False otherwise it may use previous run intermediate step result
 CONTINUE_ON_ERROR = False  # set True to keep going after errors
+# EXCLUDE_MUKEYS: List of MUKEY (Map Unit Keys) to exclude from analysis.
+#   Typically used to remove known problematic or irrelevant soil units.
 EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
+# TARGET_CRS: Coordinate Reference System for geospatial outputs.
+#   Default "EPSG:5070" is NAD83 / Conus Albers, suitable for US-wide soil datasets.
 TARGET_CRS = "EPSG:5070"
-# to study similarity index specify clusters files similarity you want to study
+# file_a, file_b: Paths to cluster assignment CSV files for similarity analysis.
+#   These files should be outputs from Stage 10 (spatial_maps.py).
 file_a="MO_30cm_clusters_vae_algorithms_merged_KMeans_k10.csv"
 file_b="MO_30cm_clusters_vae_algorithms_merged_KMeans_k12.csv"
+# col_a, col_b: Column names containing cluster labels in file_a and file_b.
+#   Used to compute similarity indices (e.g., Adjusted Rand Index) between clusterings.
 col_a="KMeans_best10"
 col_b="KMeans_best12"
-
+# ===============================================================
 # ─────────────────────────── helpers ──────────────────────────────
 def banner(msg: str):
     line = "─" * max(60, len(msg) + 9)
