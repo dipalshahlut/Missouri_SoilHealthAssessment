@@ -105,7 +105,7 @@ def _plot_metric_comparison(
 def _fit_predict(method: str, Z: np.ndarray, k: int) -> np.ndarray:
     m = method.lower()
     if m == "kmeans":
-        model = KMeans(n_clusters=k, random_state=42, n_init=20)#, n_init="auto", random_state=RANDOM_STATE)
+        model = KMeans(n_clusters=k, random_state=42, n_init=10)#, n_init="auto", random_state=RANDOM_STATE)
         return model.fit_predict(Z)
     elif m == "agglomerative":
         model = AgglomerativeClustering(n_clusters=k)

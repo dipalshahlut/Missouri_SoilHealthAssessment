@@ -66,7 +66,7 @@ def _fit_predict_labels(method: str, k: int, X: np.ndarray, random_state: int = 
 
     if m == "KMeans":
         # scikit-learn>=1.4 supports n_init="auto"; if you hit an error, set n_init=10
-        model = KMeans(n_clusters=int(k), random_state=random_state, n_init=20) #n_init="auto"
+        model = KMeans(n_clusters=int(k), random_state=random_state, n_init=10) #n_init="auto"
         return model.fit_predict(X)
 
     if m == "Agglomerative":

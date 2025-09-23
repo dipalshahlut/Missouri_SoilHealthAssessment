@@ -120,7 +120,7 @@ def _fit_one(z_mean: np.ndarray, method: str, k: int, random_state: int = 42) ->
     logging.info("Fitting %s with k=%d on z_mean shape=%s", method, k, z_mean.shape)
 
     if method == "KMeans":
-        return KMeans(n_clusters=k, random_state=random_state, n_init=20).fit_predict(z_mean)
+        return KMeans(n_clusters=k, random_state=random_state, n_init=10).fit_predict(z_mean)
     if method == "Agglomerative":
         return AgglomerativeClustering(n_clusters=k).fit_predict(z_mean)
     if method == "Birch":

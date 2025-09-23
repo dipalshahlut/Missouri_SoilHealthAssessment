@@ -73,9 +73,9 @@ VAE_EPOCHS = 100
 #   Options: "KMeans", "Agglomerative", "Birch", "GMM".
 #   Each method has different assumptions and behavior.
 CLUSTER_METHOD = "KMeans" #  "KMeans", "Agglomerative", "Birch", "GMM"
-# CLUSTER_K: Number of clusters for the chosen clustering method.
+# CLUSTER_K: Number of clusters for the chosen clustering method.S
 #   Determines how many groups the data will be partitioned into.
-CLUSTER_K = 12
+CLUSTER_K = 10
 # CONTINUE_ON_ERROR: If False, the pipeline will stop at the first error.
 #   If True, it will attempt to continue running later steps even if one step fails.
 #   recommended to keep it False otherwise it may use previous run intermediate step result
