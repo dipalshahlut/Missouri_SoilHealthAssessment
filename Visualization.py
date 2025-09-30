@@ -678,9 +678,13 @@ def plot_feature_importance_heatmap(
         annot=False,   # we'll place our own strings for exact control 
     )
     # Place our percent strings
-    for (i, j), _ in np.ndenumerate(heat_pct.values):
-        ax.text(j + 0.5, i + 0.5, annot_strings.iat[i, j],
-                ha="center", va="center", fontsize=12, color= "white")
+    for (i, j), val in np.ndenumerate(heat_pct.values):
+        # Choose threshold: half of max value for contrast
+        text_color = "white" if val > heat_pct.values.max() / 2 else "black"
+        ax.text(
+        j + 0.5, i + 0.5, annot_strings.iat[i, j],
+        ha="center", va="center", fontsize=12, color=text_color)
+
 
     # Axes & ticks
     ax.set_ylabel("Feature", fontsize=12, fontweight="bold")

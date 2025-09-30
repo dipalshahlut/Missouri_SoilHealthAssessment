@@ -104,7 +104,7 @@ def ensure_output_dir(path: str):
     os.makedirs(path, exist_ok=True)
 
 def fail(msg: str, e: Exception):
-    print(f"❌ {msg}: {e}")
+    print(f" {msg}: {e}")
     traceback.print_exc()
     if not CONTINUE_ON_ERROR:
         sys.exit(1)
