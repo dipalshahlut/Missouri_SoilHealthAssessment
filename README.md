@@ -11,7 +11,7 @@ This system processes SSURGO soil data and provides an end-to-end pipeline to:
 - Prepare SSURGO spatial and tabular data  
 - Extract and aggregate soil properties by depth layers (10 cm, 30 cm, 100 cm)  
 - Apply advanced clustering techniques using VAE for dimensionality reduction  
-- Generate soil classification and analysis reports  
+- Generate soil clustering and analysis reports  
 - Create interactive visualizations of soil property distributions  
 - Perform spatial analysis with GIS integration  
 
@@ -21,18 +21,18 @@ This system processes SSURGO soil data and provides an end-to-end pipeline to:
 
 ### Core Functionality
 - **Multi-depth Analysis**: Process soil horizons at 10 cm, 30 cm, and 100 cm depths  
-- **Advanced ML Pipeline**: VAE + K-Means, Agglomerative, Birch, Fuzzy C-Means, and Gaussian Mixture clustering  
-- **Comprehensive Evaluation**: Silhouette score, and additional QC metrics Calinski-Harabasz Index, Gap Statistic, Elbow method  
-- **Visualizations**: Latent space plots, soil property distributions, cluster areas  
+- **Advanced ML Pipeline**: Generate VAE + K-Means, Agglomerative, Birch, Fuzzy C-Means, and Gaussian Mixture clustering models 
+- **Comprehensive Evaluation**: Silhouette score, and additional QC metrics such as Calinski-Harabasz Index, Gap Statistic, Elbow method  
+- **Visualizations**: Latent space plots, soil property distributions, total areas (ac) covered in clusters 
 - **Spatial Integration**: Map clusters back into MU polygons with GIS processing (coordinate transformations, area calculations)  
 - **Quality Control**: Automated data validation and component coverage analysis  
 
 ### Data Processing Modules
 - **Geographic Processing**: Spatial data handling and CRS management  
 - **Horizon Processing**: Soil layer aggregation and organic carbon calculations  
-- **Restriction Processing**: Soil limitations and constraint analysis  
+- **Restriction Processing**: Soil root restriction and constraint analysis  
 - **Component Analysis**: Major component identification and coverage calculation  
-- **Utilities**: Weighted averaging, horizon → component → MU transformations  
+- **Utilities**: Weighted average calculation of horizon + component layer, and MU transformations  
 
 ---
 
@@ -80,11 +80,11 @@ All input data should follow SSURGO database schema standards. The system expect
 6. **clustering_selection.py** → evaluates methods/k ranges, outputs best_k_for.json
 7. **clustering_algorithms.py** → run one method+k, outputs main_df_with_{method}_k{k}.csv
 8. **metric_plots.py** → enerate clustering metrics plots over k
-9. **latent_plots.py** → plots latent 2D scatter
+9. **latent_plots.py** → latent space (2D/3D) scatter plot
 10. **visualization.py** → scatter, boxplots, and area-by-cluster charts
 11. **spatial_maps.py**  → map best labels (multi-method)
 12. **spatial_mapping.py** → map one method+k to polygons
-13. **similarity_index.py** → compare two clustering algorithms outputs 
+13. **similarity_index.py** → compare two clustering algorithms and/or k outputs 
 
 ## Outputs
 1. **Datasets**
