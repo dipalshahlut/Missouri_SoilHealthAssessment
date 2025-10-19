@@ -39,7 +39,7 @@ This system processes SSURGO soil data and provides an end-to-end pipeline to:
 ## Quick Start
 
 ### Prerequisites
-- Python 3.8+  
+- Python 3.12+  
 - GDAL/OGR libraries for spatial data processing  
 - Required Python packages (see `requirements.txt`)  
 
@@ -73,7 +73,7 @@ All input data should follow SSURGO database schema standards. The system expect
 
 ## Pipeline Analysis Workflow
 1. **sha_pipeline_runbook.py** → End-to-end runbook that executes all the python files
-2. **aggregation.py** → integrates SSURGO spatial + tabular data, outputs main_df.csv & prepared_df.parquet
+2. **aggregation.py** → integrates SSURGO spatial + tabular data, outputs prepared_df.parquet
 3. **data_preparation.py** → scales data, outputs data_scaled.npy
 4. **vae_training.py** → trains VAE, outputs z_mean.npy
 5. **clustering_evaluation.py** → clustering model selection, label generation over a latent feature space
@@ -88,7 +88,7 @@ All input data should follow SSURGO database schema standards. The system expect
 
 ## Outputs
 1. **Datasets**
-  - main_df.csv, prepared_df.parquet
+  - prepared_df.parquet
   - data_scaled.npy, z_mean.npy
 2. **Clustering Results**
   - main_df_with_{method}_k{k}.csv
