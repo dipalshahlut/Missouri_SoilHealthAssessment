@@ -12,7 +12,7 @@ Functions:
       -> tuple[np.ndarray, sklearn.base.TransformerMixin]
 
 Notes:
-- Expects CSV: {base_dir}/aggResult/MO_{analysis_depth}cm_for_clustering.csv
+- Expects Parquet: {base_dir}/aggResult/prepared_df.parquet
 - Matches the preprocessing used in Clustering-VAE_AlgorithmEval.py:
   • mean imputation (on area_ac, MnRs_dep, and depth-specific features)
   • RobustScaler on ['MnRs_dep'] + cluster_cols_base (excluding area_ac)
@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 from typing import List, Tuple
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import RobustScaler
@@ -42,11 +42,6 @@ DEFAULT_FEATURES_TO_SCALE_30CM: List[str] = ["MnRs_dep"] + DEFAULT_FEATURE_COLS_
 
 # MUKEYs filtered in the main script before processing
 DEFAULT_EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
-
-def _resolve_input_csv(base_dir: str, analysis_depth: int) -> str:
-    """{base_dir}/aggResult/MO_{analysis_depth}cm_for_clustering.csv"""
-    fname = f"MO_{analysis_depth}cm_for_clustering.csv"
-    return os.path.join(base_dir, "aggResult", fname)
 
 def _depth_cols(analysis_depth: int) -> Tuple[List[str], List[str]]:
     """
@@ -74,7 +69,7 @@ def load_and_prepare_data(
     excluded_mukeys: List[int] | None = None,
 ) -> Tuple[pd.DataFrame, np.ndarray, List[str]]:
     """
-    Load the CSV, align columns, mean-impute, and Robust-scale features.
+    Load the Parquet, align columns, mean-impute, and Robust-scale features.
 
     Returns
     -------
@@ -85,20 +80,31 @@ def load_and_prepare_data(
     features_to_scale : list[str]
         The exact feature columns used for scaling (for reproducibility).
     """
-    csv_path = _resolve_input_csv(base_dir, analysis_depth)
-    logging.info("Loading data from: %s", csv_path)
-    if not os.path.exists(csv_path):
-        raise FileNotFoundError(f"Input CSV not found: {csv_path}")
+    # Resolve where to read from
+    parquet_path = Path(base_dir) / "aggResult" / "prepared_df.parquet"
+    logging.info("Loading data from: %s", parquet_path)
+    if not parquet_path.exists():
+            existing = sorted([p.name for p in parquet_path.parent.glob("*.parquet")])
+            raise FileNotFoundError(
+                f"Input Parquet not found: {parquet_path}\n"
+                f"Parquet files present in {parquet_path.parent} -> {existing}\n"
+                "Run aggregation.py (Step 1) first to generate prepared_df.parquet."
+            )
 
-    df = pd.read_csv(csv_path)
-    logging.info("Data loaded. Shape: %s", df.shape)
+    df = pd.read_parquet(parquet_path)
+    logging.info("Data loaded. Shape: %s  dtype(mukey)=%s",df.shape, df['mukey'].dtype)
+    # ensure mukey is string for consistent matching
+    df['mukey'] = df['mukey'].astype(str)
 
     # Optional MUKEY filtering to mirror the main script
     if drop_mukeys and 'mukey' in df.columns:
         to_exclude = excluded_mukeys if excluded_mukeys is not None else DEFAULT_EXCLUDE_MUKEYS
+        # normalize exclude list to strings
+        to_exclude_str = {str(x) for x in to_exclude}
         before = len(df)
-        df = df[~df['mukey'].isin(to_exclude)]
-        logging.info("Filtered MUKEYs: removed %d rows (%s)", before - len(df), to_exclude)
+        df = df[~df['mukey'].isin(to_exclude_str)]
+        removed = before - len(df)
+        logging.info("Filtered MUKEYs: requested=%s  removed=%d",sorted(to_exclude_str), removed)
 
     # Build column sets to mirror cluster_cols_all and features_to_scale
     cluster_cols_base, features_to_scale = _depth_cols(analysis_depth)

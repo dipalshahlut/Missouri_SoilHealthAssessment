@@ -78,8 +78,8 @@ def load_horizon_data(horizon_path, cfrag_path):
 
     # Merge aggregated fragments with horizon data
     horizon_df = pd.merge(horizon_, cfrag_agg, on='chkey', how='left') # Use left join to keep all horizons
-    print(f"Loaded and merged {len(horizon_df)} horizon records.")
-    print(f"Horizon columns: {horizon_df.columns}")
+    #print(f"Loaded and merged {len(horizon_df)} horizon records.")
+    #print(f"Horizon columns: {horizon_df.columns}")
     return horizon_df
 
 # ---------------------------------------------------------------------
@@ -111,7 +111,7 @@ def prepare_horizon_data(horizon_df, comp_data_mo, reskinds_by_cokey, rockNA_to_
     print("Preparing horizon data for MO...")
     # Filter horizon_data to include only matching cokeys from comp_data_mo
     horizon_data_mo = horizon_df[horizon_df['cokey'].isin(comp_data_mo['cokey'])].copy()
-    print(f"Filtered {len(horizon_data_mo)} horizon records for MO.")
+    #print(f"Filtered {len(horizon_data_mo)} horizon records for MO.")
 
     if horizon_data_mo.empty:
         print("Warning: No horizon data found for the provided component keys.")
@@ -124,7 +124,7 @@ def prepare_horizon_data(horizon_df, comp_data_mo, reskinds_by_cokey, rockNA_to_
 
     # Filter only rows where majcompflag is 'Yes' for major component analysis
     horizons_mo_majcomps = horizon_data_mo[horizon_data_mo['majcompflag'] == 'Yes'].copy()
-    print(f"Filtered {len(horizons_mo_majcomps)} horizon records for Major Components.")
+    #print(f"Filtered {len(horizons_mo_majcomps)} horizon records for Major Components.")
 
     if horizons_mo_majcomps.empty:
         print("Warning: No major component horizon data found.")
@@ -132,10 +132,12 @@ def prepare_horizon_data(horizon_df, comp_data_mo, reskinds_by_cokey, rockNA_to_
 
     # Handle missing rock fragment volume ('fragvol_r')
     missing_fragvol = horizons_mo_majcomps['fragvol_r'].isna().sum()
-    print(f"Initial missing fragvol_r values in major components: {missing_fragvol}")
+    #print(f"Initial missing fragvol_r values in major components: {missing_fragvol}")
     if rockNA_to_0:
-        horizons_mo_majcomps['fragvol_r'].fillna(0, inplace=True)
-        print(f"Missing fragvol_r values after fillna(0): {horizons_mo_majcomps['fragvol_r'].isna().sum()}")
+        #horizons_mo_majcomps['fragvol_r'].fillna(0, inplace=True)
+        horizons_mo_majcomps['fragvol_r'] = horizons_mo_majcomps['fragvol_r'].fillna(0)
+
+        #print(f"Missing fragvol_r values after fillna(0): {horizons_mo_majcomps['fragvol_r'].isna().sum()}")
 
     # Add restriction 'kind' information
     if reskinds_by_cokey is not None and not reskinds_by_cokey.empty:
@@ -146,7 +148,7 @@ def prepare_horizon_data(horizon_df, comp_data_mo, reskinds_by_cokey, rockNA_to_
             on='cokey', how='left'
          )
          print("Added restriction kinds to horizon data.")
-         print(f"Missing restriction kinds after merge: {horizons_mo_majcomps['kind'].isna().sum()}")
+         #print(f"Missing restriction kinds after merge: {horizons_mo_majcomps['kind'].isna().sum()}")
     else:
          print("Skipping addition of restriction kinds as reskinds_by_cokey is empty/None.")
          horizons_mo_majcomps['kind'] = None # Add empty column
@@ -206,7 +208,7 @@ def aggregate_horizons_depth_slice(horizons_mo_majcomps, comp_data_mo, depth, ou
     comp_agg = horizon_to_comp(horizons_mo_majcomps, depth=depth, comp_df=comp_data_mo)
 
     if comp_agg is not None and not comp_agg.empty:
-        print(f"Aggregation complete for {depth}cm. Shape: {comp_agg.shape}")
+        #print(f"Aggregation complete for {depth}cm. Shape: {comp_agg.shape}")
         # Save intermediate result
         csv_path = os.path.join(output_dir, f"comp_MO_{filename_suffix}.csv")
         comp_agg.to_csv(csv_path, index=False)
@@ -229,7 +231,7 @@ def aggregate_horizons_depth_slice(horizons_mo_majcomps, comp_data_mo, depth, ou
 
         for var in zero_vars:
             if (comp_agg[var] == 0).any():
-                print(f"Converting 0 to NaN for {var}")
+                #print(f"Converting 0 to NaN for {var}")
                 comp_agg[f"{var}_zero"] = np.where(comp_agg[var] == 0, 'Yes', 'No')
                 comp_agg.loc[comp_agg[var] == 0, var] = np.nan
 
@@ -238,7 +240,7 @@ def aggregate_horizons_depth_slice(horizons_mo_majcomps, comp_data_mo, depth, ou
         if ksat_col in comp_agg.columns and 'compname' in comp_agg.columns:
              rock_ksat_mask = (comp_agg['compname'] == 'Rock outcrop') & (comp_agg[ksat_col] > 0)
              if rock_ksat_mask.any():
-                  print(f"Converting Ksat to NaN for {rock_ksat_mask.sum()} 'Rock outcrop' components.")
+                  #print(f"Converting Ksat to NaN for {rock_ksat_mask.sum()} 'Rock outcrop' components.")
                   comp_agg.loc[rock_ksat_mask, ksat_col] = np.nan
 
     else:
@@ -277,12 +279,12 @@ def quality_check_aggregation(comp_agg, depth):
         if not filtered_data.empty and 'mukey' in filtered_data.columns and 'comppct' in filtered_data.columns:
             comppct_by_mukey = filtered_data.groupby('mukey')['comppct'].sum().reset_index(name='comppct_tot')
             qc_results[var] = comppct_by_mukey
-            print(f"QC for {var}:")
-            print(comppct_by_mukey['comppct_tot'].describe())
+            #print(f"QC for {var}:")
+            #print(comppct_by_mukey['comppct_tot'].describe())
             low_pct_count = (comppct_by_mukey['comppct_tot'] < 70).sum()
-            print(f"  -> Mukeys with comppct_tot < 70: {low_pct_count}")
+            #print(f"  -> Mukeys with comppct_tot < 70: {low_pct_count}")
         else:
-            print(f"Skipping QC for {var}: Column not found, no data, or missing mukey/comppct.")
+            #print(f"Skipping QC for {var}: Column not found, no data, or missing mukey/comppct.")
             qc_results[var] = None
 
     print(f"Quality checks for {depth}cm complete.")

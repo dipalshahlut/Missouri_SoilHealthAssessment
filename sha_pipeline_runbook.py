@@ -24,20 +24,16 @@ import traceback
 from typing import Iterable
 from pathlib import Path
 import json, numpy as np, pandas as pd, os
-from vae_training import train_and_save
-from clustering_selection import score_many_clusterings
-from clustering_selection import main as run_select
-from clustering_algorithms import run_single_clustering_io
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import shap
 import matplotlib.ticker as mticker
-from Visualization import make_all_plots
+
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/you/Absolute/Path/to/data"
-OUTPUT_DIR = "/Users/you/Absolute/Path/to/data/aggResult"
-
+BASE_DIR = "/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data"
+OUTPUT_DIR = "/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data/aggResult"
+#/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data/mapunit.qmd
 # Steps to run (1..12); default: all
 # 1 aggregation.py
 # 2 data_preparation.py
@@ -58,7 +54,7 @@ OUTPUT_DIR = "/Users/you/Absolute/Path/to/data/aggResult"
 #   Example: range(1, 13) runs all stages from 1 through 12.
 #   You can also pass a subset like [1, 2, 5] to run only specific steps.
 STEPS_TO_RUN: Iterable[int] = range(1, 13)
-
+#STEPS_TO_RUN = [1,2,3,4,5,6,7,8,9,10]
 # ANALYSIS_DEPTH: Soil analysis depth in centimeters.
 #   Allowed values: 10, 30, or 100. Determines which depth slice of SSURGO data to use.
 ANALYSIS_DEPTH = 30
@@ -144,6 +140,7 @@ def step2_data_prep():
 def step3_vae():
     banner("STEP 3 — vae_training.py (Stage 2: VAE & latents)")
     try:
+        from vae_training import train_and_save
         train_and_save(Path(OUTPUT_DIR), VAE_LATENT_DIM, hidden_dim1=64,
         hidden_dim2=32, epochs=VAE_EPOCHS, batch_size=64, lr=1e-3)
     except Exception as e:
@@ -181,6 +178,7 @@ def step5_cluster_select():
     try:
         try:
             from clustering_selection import score_many_clusterings
+            from clustering_selection import main as run_select
             return score_many_clusterings(
                 output_dir=OUTPUT_DIR,
                 methods=["KMeans", "Agglomerative", "Birch", "GMM"],
@@ -246,7 +244,7 @@ def step8_latent_plots():
 def step9_visualization():
     banner("STEP 9 — visualization.py (scatter, boxplots, area-by-cluster)")
     try:
-        
+        from Visualization import make_all_plots
         return make_all_plots(output_dir=OUTPUT_DIR, method=CLUSTER_METHOD, k=CLUSTER_K, exclude_mukeys=EXCLUDE_MUKEYS)
     except Exception as e:
         fail("visualization.py failed", e)
@@ -282,26 +280,44 @@ def step11_spatial_mapping():
     except Exception as e:
         fail("spatial_mapping.py failed", e)
 
-
 def step12_similarity_index():
     banner("STEP 12 — similarity_index.py (compare two clustering method or k outputs)")
     try:
         from similarity_index import run_similarity_index
-        # Labels live in the spatial CSV folder:
         input_dir = Path(OUTPUT_DIR) / "shapefiles_with_data"
-        # Example: compare KMeans k=10 vs k=12 outputs you already saved
+        pattern = "*clusters_vae_algorithms_merged_*_k*.csv"
+        csvs = sorted(input_dir.glob(pattern))
+
+        if len(csvs) < 2:
+            msg = (
+                f"   Similarity Index step skipped.\n"
+                f"   ➤ This step runs *only when there are at least TWO clustering results* to compare.\n"
+                f"   ➤ Currently found {len(csvs)} file(s) in:\n"
+                f"       {input_dir}\n"
+                f"   ➤ To use this step, first run your clustering step with a *different k* or a *different algorithm*.\n"
+                f"   ➤ This will generate multiple clustering result files matching the pattern:\n"
+                f"       {pattern}\n")
+            print(msg)
+            print("Similarity Index skipped: found %d clustering file(s) in %s (need ≥ 2).",
+                len(csvs), input_dir)
+            return
+
+        # Pick two most recent automatically
+        csvs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+        file_a = csvs[0].name
+        file_b = csvs[1].name
+
         res = run_similarity_index(
             input_dir=input_dir,
-            file_a="MO_30cm_clusters_vae_algorithms_merged_KMeans_k10.csv",
-            file_b="MO_30cm_clusters_vae_algorithms_merged_KMeans_k12.csv",
-            col_a="KMeans_best10",   # optional; 
-            col_b="KMeans_best12",   # optional; 
+            file_a=file_a,
+            file_b=file_b,
         )
-        print(f"ARI: {res['ari']:.4f}")
+        print(f"✅ ARI similarity computed: {res['ari']:.4f}")
         print(f"Counts CSV: {res['counts_csv']}")
         print(f"Row% CSV : {res['rowpct_csv']}")
         print(f"HTML     : {res['html']}")
         print(f"PNG      : {res['png']}")
+
     except Exception as e:
         fail("Similarity Index failed", e)
 

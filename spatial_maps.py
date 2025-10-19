@@ -9,7 +9,7 @@ Inputs (from OUTPUT_DIR):
   - A spatial layer (.gpkg or .shp) either passed via --spatial-path or auto-detected under --base-dir
 
 Outputs (to OUTPUT_DIR):
-  - shapefiles_with_data/MO_{analysis_depth}cm_clusters_vae_algorithms_merged_{method}_k{k}.csv
+  - shapefile_with_data/MO_{analysis_depth}cm_clusters_vae_algorithms_merged_{method}_k{k}.csv
   - merged_clusters.gpkg
   - figures/map_{method}_best{k}.png
 
@@ -155,7 +155,7 @@ def merge_with_spatial_data(
     Merge cluster labels to the best spatial layer found (or the one provided).
 
     If save_csv=True and output_dir is provided, writes a CSV under:
-      <output_dir>/shapefiles_with_data/
+      <output_dir>/shapefile_with_data/
         MO_{analysis_depth}cm_clusters_vae_algorithms_merged_{method}_k{k}.csv
     """
     base_dir = Path(base_dir)
@@ -232,7 +232,7 @@ def merge_with_spatial_data(
         if not output_dir:
             logging.warning("save_csv=True but output_dir not provided; skipping CSV write.")
         else:
-            outdir = Path(output_dir) / "shapefiles_with_data"
+            outdir = Path(output_dir) / "shapefile_with_data"
             outdir.mkdir(parents=True, exist_ok=True)
 
             depth_str = f"{int(analysis_depth)}cm" if analysis_depth is not None else "xxcm"

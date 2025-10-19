@@ -47,7 +47,6 @@ except Exception:  # pragma: no cover
 # scaling, returning (df, data_scaled, cluster_cols[, fitted_scaler])
 from data_preprocessing import load_and_prepare_data
 
-
 # -------------------------------
 # Helpers for MUKEY order control
 # -------------------------------

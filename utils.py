@@ -323,17 +323,23 @@ def horizon_to_comp(horizon_df, depth, comp_df,
     for var, colname in zip(vars_of_interest, columnames): #iterates through each variable in vars_of_interest
         if var in sliced_df.columns:
             # results stored in the site-level data 
+            _needed = ['hzdepb_r', 'hzdept_r', var]
             result[colname] = (
-                sliced_df.groupby('cokey').apply(
-                    lambda group: weighted_mean(group, var, group['hzdepb_r'] - group['hzdept_r'])
+                sliced_df.groupby('cokey')[_needed].apply(
+                    lambda g: weighted_mean(g, var, g['hzdepb_r'] - g['hzdept_r'])
                 )
             )
+
     # Additional aggregations (kgOrg and awc)
+    _needed = ['om_r', 'dbthirdbar_r', 'hzdepb_r', 'hzdept_r',"fragvol_r",]
+    _needed = [c for c in _needed if c in sliced_df.columns]
     result[f'kgOrg.m2_{depth}cm'] = (
-        sliced_df.groupby('cokey').apply(lambda group: kgOrgC_sum(group))
+        sliced_df.groupby('cokey')[_needed].apply(lambda g: kgOrgC_sum(g))
     )
+    _needed = ['awc_r', 'hzdepb_r', 'hzdept_r']
+    _needed = [c for c in _needed if c in sliced_df.columns]
     result[f'awc_{depth}cm'] = (
-        sliced_df.groupby('cokey').apply(lambda group: awc_sum(group))
+        sliced_df.groupby('cokey')[_needed].apply(lambda g: awc_sum(g))
     )
 
     # Convert result to a DataFrame

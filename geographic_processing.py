@@ -34,28 +34,70 @@ __license__ = "MIT"
 import os
 import logging
 from typing import Optional
-
+from pathlib import Path
 import geopandas as gpd
 import pandas as pd
 import dask_geopandas as dask_gpd
 log = logging.getLogger(__name__)
+REQUIRED_SIDECARS = (".shp", ".shx", ".dbf", ".prj")
 
+def _resolve_and_check_shapefile(path_str: str) -> Path:
+    """Resolve absolute path, ensure required sidecars exist and are non-zero."""
+    p = Path(path_str).expanduser().resolve()
+    if not p.exists():
+        parent = p.parent
+        listing = []
+        if parent.exists():
+            # help debug basename mismatches
+            listing = [x.name for x in parent.iterdir() if x.name.startswith(p.stem)]
+        raise FileNotFoundError(
+            f"{p} not found.\nParent dir listing (same stem): {listing}"
+        )
+
+    missing, zeroed = [], []
+    for suf in REQUIRED_SIDECARS:
+        side = p.with_suffix(suf)
+        if not side.exists():
+            missing.append(side.name)
+        else:
+            try:
+                if os.path.getsize(side) == 0:
+                    zeroed.append(side.name)
+            except OSError:
+                zeroed.append(side.name)
+    if missing:
+        raise FileNotFoundError(
+            f"Shapefile incomplete at {p} — missing: {', '.join(missing)}"
+        )
+    if zeroed:
+        raise OSError(
+            f"Shapefile sidecars have zero size at {p} — zero-byte: {', '.join(zeroed)}"
+        )
+    return p
 # # ---------------------------------------------------------------------
 # # 1) Load & normalize MU polygons (repo-style variants)
 # # --------------------------------------------------------------------
 
 def load_and_filter_spatial_data_new(mu_poly_path):
-
+    """
+    Robust shapefile loader:
+    - resolve absolute path
+    - check .shp/.shx/.dbf/.prj exist and are non-zero
+    - try pyogrio (default), then fall back to Fiona
+    - normalize MUKEY column to uppercase 'MUKEY'
+    """
+    p = _resolve_and_check_shapefile(mu_poly_path)
+    print(f"[geo] Reading MU polygons from: {p}")
     # Load Map Unit Polygons
     mu_poly_shp = gpd.read_file(mu_poly_path)
-    print(f"Map Unit Polygons shape: {mu_poly_shp.shape}")
-    print(mu_poly_shp.columns)
+    #print(f"Map Unit Polygons shape: {mu_poly_shp.shape}")
+    #print(mu_poly_shp.columns)
     # Use the filtered Crop/MU/MLRA layer for analysis based on the "OUR CONCEPT" comments
     # Alternatively, use mu_shp if analysis shouldn't be restricted by crop type initially
     mo_mu_shp_initial = mu_poly_shp.copy()  # Uncomment this line if you want all MO map units initially
 
-    print(f"Initial MO Map Unit shape: {mo_mu_shp_initial.shape}")
-    print(f"Initial MO Map Unit columns: {mo_mu_shp_initial.columns}")
+    #print(f"Initial MO Map Unit shape: {mo_mu_shp_initial.shape}")
+    #print(f"Initial MO Map Unit columns: {mo_mu_shp_initial.columns}")
 
     # Standardize MUKEY column name if necessary (check CMLayer columns output)
     if 'mukey' in mo_mu_shp_initial.columns and 'MUKEY' not in mo_mu_shp_initial.columns:
@@ -114,7 +156,7 @@ def filter_secondary_shp_by_primary_mukey_count(primary_shapefile_path: str,
     """
     # --- Input Validation (Primary File) ---
     if not os.path.exists(primary_shapefile_path):
-        print(f"Error: Primary shapefile not found at {primary_shapefile_path}")
+        #print(f"Error: Primary shapefile not found at {primary_shapefile_path}")
         return gpd.GeoDataFrame() # Return empty
 
     # --- Read and Analyze Primary File ---
@@ -123,13 +165,13 @@ def filter_secondary_shp_by_primary_mukey_count(primary_shapefile_path: str,
         if verbose:
             print(f"--- Analyzing Primary File: {os.path.basename(primary_shapefile_path)} ---")
             print(f"Primary CRS: {gdf_primary.crs}")
-            print(f"Primary Original Shape: {gdf_primary.shape}")
+            #print(f"Primary Original Shape: {gdf_primary.shape}")
     except Exception as e:
         print(f"Error reading primary shapefile {primary_shapefile_path}: {e}")
         return gpd.GeoDataFrame()
 
     if 'MUKEY' not in gdf_primary.columns:
-        print(f"Error: 'MUKEY' column not found in primary shapefile {primary_shapefile_path}")
+        #print(f"Error: 'MUKEY' column not found in primary shapefile {primary_shapefile_path}")
         return gpd.GeoDataFrame()
 
     if verbose:
@@ -139,8 +181,8 @@ def filter_secondary_shp_by_primary_mukey_count(primary_shapefile_path: str,
     mukey_list_to_keep = mukey_counts_meeting_criteria.index
 
     if verbose:
-        print(f"\nTotal unique MUKEYs in primary file: {len(polygon_counts)}")
-        print(f"MUKEYs meeting count >= {min_count}: {len(mukey_list_to_keep)}")
+        #print(f"\nTotal unique MUKEYs in primary file: {len(polygon_counts)}")
+        #print(f"MUKEYs meeting count >= {min_count}: {len(mukey_list_to_keep)}")
         if mukey_list_to_keep.empty:
             print(f"No MUKEYs found meeting the criteria in the primary file.")
             # Return empty GDF matching secondary schema if possible (read below)
@@ -181,7 +223,7 @@ def filter_secondary_shp_by_primary_mukey_count(primary_shapefile_path: str,
         filtered_secondary_gdf = gdf_secondary[gdf_secondary['MUKEY'].isin(mukey_list_to_keep)].copy()
 
         if verbose:
-            print(f"Shape after filtering secondary file: {filtered_secondary_gdf.shape}")
+            #print(f"Shape after filtering secondary file: {filtered_secondary_gdf.shape}")
             if filtered_secondary_gdf.empty:
                  print("Warning: Filtering resulted in an empty GeoDataFrame (no matching MUKEYs found in secondary file).")
             # print("Head of filtered secondary data (before potential column drop):")
@@ -190,8 +232,8 @@ def filter_secondary_shp_by_primary_mukey_count(primary_shapefile_path: str,
             # --- Informational calculations from user request ---
             unique_mukeys_in_result = filtered_secondary_gdf['MUKEY'].nunique()
             total_polygons_in_result = len(filtered_secondary_gdf)
-            print(f"Unique MUKEYs in filtered result: {unique_mukeys_in_result}")
-            print(f"Total polygons in filtered result: {total_polygons_in_result}")
+            #print(f"Unique MUKEYs in filtered result: {unique_mukeys_in_result}")
+            #print(f"Total polygons in filtered result: {total_polygons_in_result}")
             # ---
 
     else:
@@ -272,14 +314,14 @@ def reproject_and_calculate_area(mo_mu_shp, target_crs="EPSG:5070"):
 
     try:
         if str(mo_mu_shp.crs).upper() != str(target_crs).upper(): # Compare CRS more robustly
-             print(f"Input CRS ({mo_mu_shp.crs}) differs from target ({target_crs}). Reprojecting...")
+             #print(f"Input CRS ({mo_mu_shp.crs}) differs from target ({target_crs}). Reprojecting...")
              mo_mu_aea = mo_mu_shp.to_crs(target_crs)
-             print(f"Reprojection successful. New CRS: {mo_mu_aea.crs}")
+             #print(f"Reprojection successful. New CRS: {mo_mu_aea.crs}")
         else:
              print(f"Input CRS ({mo_mu_shp.crs}) already matches target. Making a copy.")
              mo_mu_aea = mo_mu_shp.copy()
 
-        print(f"Shape after reprojection/copy: {mo_mu_aea.shape}")
+        #print(f"Shape after reprojection/copy: {mo_mu_aea.shape}")
         if mo_mu_aea.empty and not mo_mu_shp.empty:
              print("Warning: GeoDataFrame became empty after reprojection/copy step!")
 
@@ -300,7 +342,7 @@ def reproject_and_calculate_area(mo_mu_shp, target_crs="EPSG:5070"):
     try:
         # Check geometry types
         geom_types = mo_mu_aea.geometry.geom_type.unique()
-        print(f"Geometry types present: {geom_types}")
+        #print(f"Geometry types present: {geom_types}")
         if not any(gtype in ['Polygon', 'MultiPolygon'] for gtype in geom_types):
             print("Warning: No Polygon or MultiPolygon geometries found. Area calculation might result in zeros.")
 
@@ -317,7 +359,7 @@ def reproject_and_calculate_area(mo_mu_shp, target_crs="EPSG:5070"):
         # OR (area_sqm / 10000) * 2.47105 # sqm -> ha -> acres - This is correct
         mo_mu_aea["area_ac"] = (mo_mu_aea["area_sqm"] / 10000) * 2.47105
         print("Area (acres) calculation statistics:")
-        print(mo_mu_aea["area_ac"].describe())
+        #print(mo_mu_aea["area_ac"].describe())
 
         total_area_acres = mo_mu_aea["area_ac"].sum()
         print(f"Total area calculated: {total_area_acres:.2f} acres")
@@ -344,7 +386,7 @@ def reproject_and_calculate_area(mo_mu_shp, target_crs="EPSG:5070"):
              mo_mu_aea['MUKEY'] = mo_mu_aea['MUKEY'].astype(str)
              print("Renaming 'MUKEY' to 'mukey'.")
              mo_mu_aea.rename(columns={'MUKEY': 'mukey'}, inplace=True)
-             print("Columns after rename:", mo_mu_aea.columns.tolist())
+             #print("Columns after rename:", mo_mu_aea.columns.tolist())
         except Exception as e:
              print(f"Error processing MUKEY column: {e}")
     elif 'mukey' in mo_mu_aea.columns:

@@ -23,8 +23,8 @@ Vector:
 
 Outputs (written to OUTPUT_DIR)
 -------------------------------
-- shapefiles_with_data/MO_30cm_clusters_{method}_k{k}.gpkg
-- shapefiles_with_data/shp/MO_30cm_clusters_{method}_k{k}.shp
+- shapefile_with_data/MO_30cm_clusters_{method}_k{k}.gpkg
+- shapefile_with_data/shp/MO_30cm_clusters_{method}_k{k}.shp
 - map_{method}_k{k}.png
 
 Notes
@@ -40,7 +40,7 @@ Usage:
     --k 10 \
     --vector-path /path/to/data/mupoly.shp \
     --out-basename mupoly_10 \
-    --shp-folder-name shapefile_with_Data
+    --shp-folder-name shapefile_with_data
 """
 
 from __future__ import annotations
@@ -263,7 +263,7 @@ def create_spatial_products(
     write_shp: bool = True,
     shp_minimal: bool = True,
     out_basename: str | None = None,
-    shp_folder_name: str = "shapefile_with_Data",
+    shp_folder_name: str = "shapefile_with_data",
     write_back: bool = True,
     back_layer: str | None = None,
     back_suffix: str = "_with_clusters",
@@ -469,8 +469,8 @@ def _build_argparser() -> argparse.ArgumentParser:
                    help="(GPKG only) Layer name to write merged output into (default: <stem>_with_clusters).")
     p.add_argument("--out-basename", default=None,
                    help="Base name for outputs (overrides MO_30cm_clusters_{method}_k{k}), e.g., 'mupoly_10'.")
-    p.add_argument("--shp-folder-name", default="shapefile_with_Data",
-                   help="Top-level folder (under output-dir) that will contain the 'shp' subfolder. Default: shapefile_with_Data")
+    p.add_argument("--shp-folder-name", default="shapefile_with_data",
+                   help="Top-level folder (under output-dir) that will contain the 'shp' subfolder. Default: shapefile_with_data")
     return p
 
 

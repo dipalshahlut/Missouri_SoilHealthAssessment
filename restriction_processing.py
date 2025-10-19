@@ -132,7 +132,7 @@ def aggregate_restriction_depths(restrictions_mo):
 
         df_filtered = restrictions_major[restrictions_major['reskind'] == res_type]
         if not df_filtered.empty:
-            print(f"Aggregating for: {res_type}")
+            #print(f"Aggregating for: {res_type}")
             # Check for duplicates before aggregation if needed
             # print(f"Duplicates for {res_type}: {df_filtered['cokey'].duplicated().sum()}")
             depth_aggregations[res_type] = MUAggregate_wrapper(df=df_filtered, varnames=['resdept_r', 'resdepb_r'])
@@ -181,7 +181,7 @@ def create_restriction_summary(restrictions_mo, comp_data):
         .reset_index()
         .rename(columns={'reskind': 'reskinds'})
     )
-    print(f"Shape of reskinds_by_cokey: {reskinds_by_cokey.shape}")
+    #print(f"Shape of reskinds_by_cokey: {reskinds_by_cokey.shape}")
 
     # Add component info
     cokey_map = comp_data.set_index('cokey')
@@ -193,7 +193,7 @@ def create_restriction_summary(restrictions_mo, comp_data):
     # Remove 'Rock outcrop' components if needed (as per original script logic)
     initial_rows = len(reskinds_by_cokey)
     reskinds_by_cokey = reskinds_by_cokey[reskinds_by_cokey['compname'] != 'Rock outcrop'].copy()
-    print(f"Removed {initial_rows - len(reskinds_by_cokey)} 'Rock outcrop' components from cokey summary.")
+    #print(f"Removed {initial_rows - len(reskinds_by_cokey)} 'Rock outcrop' components from cokey summary.")
 
     # --- By Mukey ---
     # Group the processed cokey summary by mukey
@@ -204,8 +204,8 @@ def create_restriction_summary(restrictions_mo, comp_data):
             .reset_index()
             #.rename(columns={'reskinds': 'reskinds'}) # Already named reskinds
         )
-        print(f"Shape of reskinds_by_mukey: {reskinds_by_mukey.shape}")
-        print("Unique combined reskinds by mukey:", reskinds_by_mukey['reskinds'].unique())
+        #print(f"Shape of reskinds_by_mukey: {reskinds_by_mukey.shape}")
+        #print("Unique combined reskinds by mukey:", reskinds_by_mukey['reskinds'].unique())
     else:
         print("Cannot create mukey summary as cokey summary is empty.")
         reskinds_by_mukey = pd.DataFrame(columns=['mukey', 'reskinds'])
@@ -249,7 +249,7 @@ def calculate_restriction_percentages(comp_data_mo, reskinds_by_cokey):
               rock_outcrop_data.groupby('mukey', as_index=False)['comppct_r']
               .sum().rename(columns={'comppct_r': 'compct_sum'})
           )
-         print(f"Calculated Rock Outcrop percentage for {len(restriction_pcts['Rock outcrop'])} mukeys.")
+         #print(f"Calculated Rock Outcrop percentage for {len(restriction_pcts['Rock outcrop'])} mukeys.")
     else:
         print("No 'Rock outcrop' components found.")
 
@@ -265,7 +265,7 @@ def calculate_restriction_percentages(comp_data_mo, reskinds_by_cokey):
         else:
             res_key = res_type
 
-        print(f"Calculating percentage for: {res_key} (using pattern: {pattern})")
+        #print(f"Calculating percentage for: {res_key} (using pattern: {pattern})")
         # Assuming reskind_comppct handles the filtering and aggregation
         pct_df = reskind_comppct(pattern, comp_data_mo, reskinds_by_cokey) # Pass pattern
         if pct_df is not None and not pct_df.empty:
