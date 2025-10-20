@@ -17,7 +17,7 @@ __license__ = "MIT"
 """
 
 from __future__ import annotations
-import os
+import os,re
 import sys, subprocess
 import time
 import traceback
@@ -31,8 +31,8 @@ import matplotlib.ticker as mticker
 
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/Path/to/data"
-OUTPUT_DIR = "/Users/Path/to/data/aggResult"
+BASE_DIR = "/Users/path/to/data"
+OUTPUT_DIR = "/Users/path/to/data/aggResult"
 
 # Steps to run (1..12); default: all
 # 1 aggregation.py
@@ -54,7 +54,7 @@ OUTPUT_DIR = "/Users/Path/to/data/aggResult"
 #   Example: range(1, 13) runs all stages from 1 through 12.
 #   You can also pass a subset like [1, 2, 5] to run only specific steps.
 STEPS_TO_RUN: Iterable[int] = range(1, 13)
-#STEPS_TO_RUN = [1, 2]
+#STEPS_TO_RUN = [11,12]
 # ANALYSIS_DEPTH: Soil analysis depth in centimeters.
 #   Allowed values: 10, 30, or 100. Determines which depth slice of SSURGO data to use.
 ANALYSIS_DEPTH = 30
@@ -68,7 +68,7 @@ VAE_EPOCHS = 100
 # CLUSTER_METHOD: Clustering algorithm to use after VAE training.
 #   Options: "KMeans", "Agglomerative", "Birch", "GMM".
 #   Each method has different assumptions and behavior.
-CLUSTER_METHOD = "KMeans" #  "KMeans", "Agglomerative", "Birch", "GMM"
+CLUSTER_METHOD =  "KMeans"  #"KMeans", "Agglomerative", "Birch", "GMM"
 # CLUSTER_K: Number of clusters for the chosen clustering method.S
 #   Determines how many groups the data will be partitioned into.
 CLUSTER_K = 10
@@ -286,47 +286,55 @@ def step12_similarity_index():
         from similarity_index import run_similarity_index
         input_dir = Path(OUTPUT_DIR) / "shapefile_with_data"
         print(input_dir.resolve())
-
         pattern = "*_clusters_vae_algorithms_merged_*_k*.csv"
-        csvs = [
-            p for p in sorted(input_dir.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
-            if "__vs__" not in p.name and "crosstab" not in p.name
-        ]
+        csvs = sorted(
+            (p for p in input_dir.glob(pattern)
+             if "__vs__" not in p.name and "crosstab" not in p.name),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True
+        )
         print("Candidates:", [p.name for p in csvs])
-        print("Candidates:", [p.name for p in csvs])
-
 
         if len(csvs) < 2:
-            msg = (
-                f"   Similarity Index step skipped.\n"
-                f"   ➤ This step runs *only when there are at least TWO clustering results* to compare.\n"
-                f"   ➤ Currently found {len(csvs)} file(s) in:\n"
-                f"       {input_dir}\n"
-                f"   ➤ To use this step, first run your clustering step with a *different k* or a *different algorithm*.\n"
-                f"   ➤ This will generate multiple clustering result files matching the pattern:\n"
-                f"       {pattern}\n")
-            print(msg)
-            print("Similarity Index skipped: found %d clustering file(s) in %s (need ≥ 2).",
-                len(csvs), input_dir)
+            print(f"Similarity Index skipped: found {len(csvs)} file(s) in {input_dir} (need ≥ 2).")
+            print("Expected pattern:", pattern)
             return
 
-        # Pick two most recent automatically
-        file_a = csvs[0].name
-        file_b = None
-        for cand in csvs[1:]:
-            if cand.name != file_a:
-                file_b = cand.name
-                break
+        # Pick two most recent distinct files
+        file_a = csvs[0]
+        file_b = next((p for p in csvs[1:] if p.name != file_a.name), None)
         if file_b is None:
             print("Could not find two distinct files to compare.")
             return
 
+        # Derive label columns from filenames: ..._{Method}_k{K}.csv -> {Method}_best{K}
+        def col_from_filename(p: Path):
+            m = re.search(r"_(KMeans|Agglomerative|Birch|GMM)_k(\d+)\.csv$", p.name, re.IGNORECASE)
+            if not m:
+                return None
+            method = m.group(1)  # keep canonical case from filename
+            k = int(m.group(2))
+            return f"{method}_best{k}"
+
+        col_a = col_from_filename(file_a)
+        col_b = col_from_filename(file_b)
+
+        if not col_a or not col_b:
+            print("Could not derive label columns from filenames:")
+            print("   A:", file_a.name, "→", col_a)
+            print("   B:", file_b.name, "→", col_b)
+            print("   Expected filename suffix like '_KMeans_k12.csv'")
+            return
+
+        print(f"Comparing:\n  A: {file_a.name}  (col={col_a})\n  B: {file_b.name}  (col={col_b})")
+
         res = run_similarity_index(
             input_dir=input_dir,
-            file_a=file_a,#"MO_30cm_clusters_vae_algorithms_merged_KMeans_k12.csv",
-            file_b=file_b,#"MO_30cm_clusters_vae_algorithms_merged_KMeans_k10.csv",
-            col_a=col_a,#"KMeans_best12",
-            col_b=col_b,#"KMeans_best10",
+            output_dir=input_dir,
+            file_a=file_a.name,
+            file_b=file_b.name,
+            col_a=col_a,
+            col_b=col_b,
         )
         print(f"✅ ARI similarity computed: {res['ari']:.4f}")
         print(f"Counts CSV: {res['counts_csv']}")
