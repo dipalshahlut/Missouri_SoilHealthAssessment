@@ -31,9 +31,9 @@ import matplotlib.ticker as mticker
 
 # ───────────────────────────── CONFIG ─────────────────────────────
 # Absolute paths for your machine (defaults from your earlier runs)
-BASE_DIR = "/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data"
-OUTPUT_DIR = "/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data/aggResult"
-#/Users/rahultest/Desktop/Missouri_SoilHealthAssessment/data/mapunit.qmd
+BASE_DIR = "/Users/Path/to/data"
+OUTPUT_DIR = "/Users/Path/to/data/aggResult"
+
 # Steps to run (1..12); default: all
 # 1 aggregation.py
 # 2 data_preparation.py
