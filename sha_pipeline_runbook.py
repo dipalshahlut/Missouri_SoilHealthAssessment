@@ -54,7 +54,7 @@ OUTPUT_DIR = "/Users/Path/to/data/aggResult"
 #   Example: range(1, 13) runs all stages from 1 through 12.
 #   You can also pass a subset like [1, 2, 5] to run only specific steps.
 STEPS_TO_RUN: Iterable[int] = range(1, 13)
-#STEPS_TO_RUN = [1,2,3,4,5,6,7,8,9,10]
+#STEPS_TO_RUN = [1, 2]
 # ANALYSIS_DEPTH: Soil analysis depth in centimeters.
 #   Allowed values: 10, 30, or 100. Determines which depth slice of SSURGO data to use.
 ANALYSIS_DEPTH = 30
@@ -83,7 +83,7 @@ EXCLUDE_MUKEYS = [2498901, 2498902, 2500799, 2500800, 2571513, 2571527]
 #   Default "EPSG:5070" is NAD83 / Conus Albers, suitable for US-wide soil datasets.
 TARGET_CRS = "EPSG:5070"
 # file_a, file_b: Paths to cluster assignment CSV files for similarity analysis.
-#   These files should be outputs from Stage 10 (spatial_maps.py).
+#   These files should be outputs from Stage 11 (spatial_maps.py).
 file_a="MO_30cm_clusters_vae_algorithms_merged_KMeans_k10.csv"
 file_b="MO_30cm_clusters_vae_algorithms_merged_KMeans_k12.csv"
 # col_a, col_b: Column names containing cluster labels in file_a and file_b.
@@ -284,9 +284,17 @@ def step12_similarity_index():
     banner("STEP 12 — similarity_index.py (compare two clustering method or k outputs)")
     try:
         from similarity_index import run_similarity_index
-        input_dir = Path(OUTPUT_DIR) / "shapefiles_with_data"
-        pattern = "*clusters_vae_algorithms_merged_*_k*.csv"
-        csvs = sorted(input_dir.glob(pattern))
+        input_dir = Path(OUTPUT_DIR) / "shapefile_with_data"
+        print(input_dir.resolve())
+
+        pattern = "*_clusters_vae_algorithms_merged_*_k*.csv"
+        csvs = [
+            p for p in sorted(input_dir.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+            if "__vs__" not in p.name and "crosstab" not in p.name
+        ]
+        print("Candidates:", [p.name for p in csvs])
+        print("Candidates:", [p.name for p in csvs])
+
 
         if len(csvs) < 2:
             msg = (
@@ -303,14 +311,22 @@ def step12_similarity_index():
             return
 
         # Pick two most recent automatically
-        csvs.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         file_a = csvs[0].name
-        file_b = csvs[1].name
+        file_b = None
+        for cand in csvs[1:]:
+            if cand.name != file_a:
+                file_b = cand.name
+                break
+        if file_b is None:
+            print("Could not find two distinct files to compare.")
+            return
 
         res = run_similarity_index(
             input_dir=input_dir,
-            file_a=file_a,
-            file_b=file_b,
+            file_a=file_a,#"MO_30cm_clusters_vae_algorithms_merged_KMeans_k12.csv",
+            file_b=file_b,#"MO_30cm_clusters_vae_algorithms_merged_KMeans_k10.csv",
+            col_a=col_a,#"KMeans_best12",
+            col_b=col_b,#"KMeans_best10",
         )
         print(f"✅ ARI similarity computed: {res['ari']:.4f}")
         print(f"Counts CSV: {res['counts_csv']}")
