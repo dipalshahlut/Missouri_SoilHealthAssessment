@@ -244,6 +244,9 @@ def _reproject_and_area(gdf: gpd.GeoDataFrame, target_crs: str = "EPSG:5070") ->
         gdf["area_m2"] = gdf.geometry.area
     if "area_ac" not in gdf.columns:
         gdf["area_ac"] = gdf["area_m2"] * 0.000247105381
+
+    gdf["area_m2"] = gdf["area_m2"].round(0).astype("int64")   #
+    gdf["area_ac"] = gdf["area_ac"].round(2)      
     return gdf
 
 

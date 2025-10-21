@@ -61,8 +61,8 @@ python -c "import gdal; print('GDAL version:', gdal.__version__)"
 https://nrcs.app.box.com/v/soils/file/1680543039768     
 **Note:** process the downloaded gSSURGO data in GIS software and convert them into the recommended file format.
 Place the following in your /path/to/data/ directory:
-- **Spatial Data**: mupolygon.shp (spatial polygons)
-- **Tabular Data**: mapunit.csv, component.csv, muagg.csv, corestrictions.csv, chorizon.csv, chfrags.csv
+- **Spatial Data**: mupoly.shp (spatial polygons)
+- **Tabular Data**: mapunit.csv, component.csv, muagg.csv, corestrictions.csv, chorizon.csv, cfrags.csv
 - **Geographic Boundaries**: County or study area boundaries
 
 ## Data format expectations
